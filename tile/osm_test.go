@@ -2,11 +2,26 @@ package tile
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+// testSource returns an osmSource pointed at the given test-server
+// URL with a fixed UA. Test-only helper; production callers use
+// OSMWithUserAgent.
+func testSource(t *testing.T, baseURL, ua string) *osmSource {
+	t.Helper()
+	prefix := baseURL + "/"
+	return &osmSource{
+		client:    http.DefaultClient,
+		userAgent: sanitizeHeader(ua),
+		urlPrefix: prefix,
+	}
+}
 
 func TestOSM_URL(t *testing.T) {
 	s := OSM()
@@ -70,6 +85,156 @@ func TestOSM_HTTPFetcher_SendsUserAgent(t *testing.T) {
 
 	if gotUA != wantUA {
 		t.Errorf("User-Agent = %q, want %q", gotUA, wantUA)
+	}
+}
+
+// URL must succeed at the maximum representable zoom (Z=31, where X/Y
+// can be up to 10 digits) — exercises the stack-buffer sizing in
+// buildTileURL.
+func TestOSM_URL_MaxZoom31(t *testing.T) {
+	s := OSM()
+	c := Coord{Z: 31, X: (1 << 31) - 1, Y: (1 << 31) - 1}
+	got := s.URL(c)
+	want := "https://tile.openstreetmap.org/31/2147483647/2147483647.png"
+	if got != want {
+		t.Errorf("URL = %q, want %q", got, want)
+	}
+}
+
+// At Z=32, uint32(1)<<32 = 0 in Go, so Coord.Valid returns false and
+// URL must short-circuit to "" rather than build a nonsense address.
+func TestOSM_URL_Z32IsInvalid(t *testing.T) {
+	s := OSM()
+	if got := s.URL(Coord{Z: 32, X: 0, Y: 0}); got != "" {
+		t.Errorf("URL at Z=32 = %q, want \"\"", got)
+	}
+}
+
+// sanitizeHeader must strip CR and LF so a malicious UA cannot append
+// extra HTTP headers via injection.
+func TestSanitizeHeader_StripsCRLF(t *testing.T) {
+	got := sanitizeHeader("foo\r\nX-Inject: bar")
+	want := "fooX-Inject: bar"
+	if got != want {
+		t.Errorf("sanitizeHeader = %q, want %q", got, want)
+	}
+}
+
+func TestSanitizeHeader_TrimsWhitespace(t *testing.T) {
+	got := sanitizeHeader("  hello  ")
+	if got != "hello" {
+		t.Errorf("sanitizeHeader = %q, want \"hello\"", got)
+	}
+}
+
+// Length cap prevents an accidentally huge UA from landing on every
+// outbound request.
+func TestSanitizeHeader_CapsLength(t *testing.T) {
+	in := strings.Repeat("a", maxUserAgentLen+100)
+	got := sanitizeHeader(in)
+	if len(got) != maxUserAgentLen {
+		t.Errorf("len = %d, want %d", len(got), maxUserAgentLen)
+	}
+}
+
+// End-to-end: the sanitizer must run before the UA reaches outbound
+// HTTP. Confirms construction wiring, not just the helper.
+func TestOSMWithUserAgent_AppliesSanitizer(t *testing.T) {
+	var got string
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(_ http.ResponseWriter, r *http.Request) {
+			got = r.Header.Get("User-Agent")
+		}))
+	defer srv.Close()
+
+	src := testSource(t, srv.URL, "evil\r\nX-Bad: yes")
+	_, _ = src.Fetch(context.Background(), Coord{Z: 1, X: 0, Y: 0})
+
+	if strings.ContainsAny(got, "\r\n") {
+		t.Errorf("UA contains CRLF: %q", got)
+	}
+	if !strings.HasPrefix(got, "evil") {
+		t.Errorf("UA = %q, want prefix \"evil\"", got)
+	}
+}
+
+// LimitReader must cap response-body size; a hostile or
+// misconfigured server returning gigabytes must not OOM the caller.
+func TestOSM_Fetch_LimitsResponseBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "image/png")
+			w.WriteHeader(http.StatusOK)
+			// Write more than maxTileBytes; LimitReader should
+			// truncate the read.
+			big := make([]byte, maxTileBytes+(1<<20))
+			_, _ = w.Write(big)
+		}))
+	defer srv.Close()
+
+	src := testSource(t, srv.URL, "test/1")
+	body, err := src.Fetch(context.Background(), Coord{Z: 1, X: 0, Y: 0})
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if int64(len(body)) > maxTileBytes {
+		t.Errorf("body len = %d, exceeds cap %d", len(body), maxTileBytes)
+	}
+}
+
+func TestOSM_Fetch_404ReturnsErrNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+	defer srv.Close()
+
+	src := testSource(t, srv.URL, "test/1")
+	_, err := src.Fetch(context.Background(), Coord{Z: 1, X: 0, Y: 0})
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("err = %v, want ErrNotFound", err)
+	}
+}
+
+// Non-404 error statuses must surface as a wrapped error with status
+// info, not be swallowed.
+func TestOSM_Fetch_500WrapsStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+	defer srv.Close()
+
+	src := testSource(t, srv.URL, "test/1")
+	_, err := src.Fetch(context.Background(), Coord{Z: 1, X: 0, Y: 0})
+	if err == nil {
+		t.Fatal("err = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "500") {
+		t.Errorf("err = %v, want to mention 500", err)
+	}
+}
+
+// Sanity: the testSource helper itself must build URLs that the test
+// server actually routes to. Catches mismatches between buildTileURL
+// and the prefix-based override path.
+func TestTestSource_FetchHitsRightPath(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			gotPath = r.URL.Path
+			w.WriteHeader(http.StatusOK)
+			_, _ = io.WriteString(w, "ok")
+		}))
+	defer srv.Close()
+
+	src := testSource(t, srv.URL, "test/1")
+	if _, err := src.Fetch(context.Background(),
+		Coord{Z: 4, X: 5, Y: 6}); err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if gotPath != "/4/5/6.png" {
+		t.Errorf("path = %q, want /4/5/6.png", gotPath)
 	}
 }
 

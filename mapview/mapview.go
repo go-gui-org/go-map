@@ -50,11 +50,54 @@ type Cfg struct {
 	A11YDescription string
 
 	// Events. Callbacks run on the UI goroutine; do not block.
-	OnViewportChange func(*gui.Window, MapState)
+	// Fired only when the relevant state actually changes; the first
+	// frame seeds the comparison baseline and does not fire either
+	// callback.
+	OnMove       func(*gui.Window, MapState)
+	OnZoomChange func(*gui.Window, uint32)
+}
+
+// fireDecision is the pure-function core of fireCallbacks. Returns
+// the next baseline plus flags for which callbacks (if any) the
+// caller should invoke. Splitting this out from the registry plumbing
+// makes the delta logic unit-testable without a Window.
+func fireDecision(prev lastFired, s MapState) (next lastFired, fireMove, fireZoom bool) {
+	if !prev.Set {
+		return lastFired{State: s, Set: true}, false, false
+	}
+	if prev.State == s {
+		return prev, false, false
+	}
+	return lastFired{State: s, Set: true},
+		prev.State.Center != s.Center,
+		prev.State.Zoom != s.Zoom
+}
+
+// fireCallbacks invokes OnMove / OnZoomChange when the current
+// snapshot differs from the last-fired snapshot. Maintains its own
+// state-registry slot so callback semantics stay independent of the
+// public MapState lifecycle.
+func fireCallbacks(w *gui.Window, c Cfg, s MapState) {
+	prev := nsRead[lastFired](w, nsLastFired, c.ID)
+	next, fireMove, fireZoom := fireDecision(prev, s)
+	if next != prev {
+		nsWrite(w, nsLastFired, c.ID, next)
+	}
+	if fireMove && c.OnMove != nil {
+		c.OnMove(w, s)
+	}
+	if fireZoom && c.OnZoomChange != nil {
+		c.OnZoomChange(w, s.Zoom)
+	}
 }
 
 // Map returns a map View. Cfg.ID must be non-empty; it is the key
 // for all per-map state in the Window registry.
+//
+// InitialZoom is clamped to maxZoom so a stray Cfg value cannot
+// permanently park the seed (and therefore the Home key) outside
+// the renderable range. InitialCenter is run through Clamp so NaN /
+// ±Inf coordinates can never reach the viewport math.
 func Map(cfg Cfg) gui.View {
 	if cfg.ID == "" {
 		panic("mapview: Cfg.ID is required")
@@ -68,6 +111,10 @@ func Map(cfg Cfg) gui.View {
 	if cfg.InitialZoom == 0 {
 		cfg.InitialZoom = 2
 	}
+	if cfg.InitialZoom > maxZoom {
+		cfg.InitialZoom = maxZoom
+	}
+	cfg.InitialCenter = cfg.InitialCenter.Clamp()
 	return &mapView{cfg: cfg}
 }
 
@@ -90,20 +137,23 @@ func (mv *mapView) GenerateLayout(w *gui.Window) gui.Layout {
 	}
 	s := readState(w, c.ID, seed)
 
-	if c.OnViewportChange != nil {
-		c.OnViewportChange(w, s)
-	}
+	// Fire delta-driven callbacks before the draw closure captures
+	// state. Skip the first frame so consumers do not see a synthetic
+	// "change" matching the seed they already supplied.
+	fireCallbacks(w, c, s)
 
 	// Capture state by value into the OnDraw closure. Reads happen
 	// here (on the UI goroutine) so the draw pass never touches the
 	// registry — keeping OnDraw allocation-free.
 	src := c.Source
-	hover := readHover(w, c.ID)
+	hover := nsRead[hoverState](w, nsHover, c.ID)
 	onDraw := func(dc *gui.DrawContext) {
 		vp := computeViewport(dc.Width, dc.Height, s)
 		drawTiles(dc, vp, src)
+		drawScaleBar(dc, s)
 		drawCoordReadout(dc, vp, s, hover)
 		drawZoomIndicator(dc, s.Zoom)
+		drawHomeButton(dc)
 		drawAttribution(dc, src)
 	}
 
@@ -128,7 +178,7 @@ func (mv *mapView) GenerateLayout(w *gui.Window) gui.Layout {
 		Color:           c.Background,
 		Clip:            true,
 		OnDraw:          onDraw,
-		OnClick:         onClick(c.ID, c.Source),
+		OnClick:         onClick(c.ID, seed),
 		OnMouseScroll:   onMouseScroll(c.ID, c.Source),
 		OnMouseMove:     onMouseMove(c.ID),
 		OnMouseLeave:    onMouseLeave(c.ID),

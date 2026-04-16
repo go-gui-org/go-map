@@ -5,11 +5,16 @@ import (
 	"github.com/mike-ward/go-map/projection"
 )
 
-// Namespace and capacity for mapview state stored in the per-Window
-// gui.StateRegistry. Keyed by Cfg.ID.
+// State-registry namespaces. Convention: "mapview.<purpose>", one
+// namespace per distinct value type, all keyed by Cfg.ID. capMaps is
+// the per-namespace map cap passed to gui.StateMap.
 const (
-	nsState = "mapview.state"
-	capMaps = 16
+	nsState     = "mapview.state"
+	nsPan       = "mapview.pan"
+	nsHover     = "mapview.hover"
+	nsLastFired = "mapview.lastfired"
+	nsScroll    = "mapview.scroll"
+	capMaps     = 16
 )
 
 // MapState is the persistent per-map state held in the Window state
@@ -21,11 +26,6 @@ const (
 type MapState struct {
 	Center projection.LatLng
 	Zoom   uint32
-
-	// Seeded tracks whether Cfg.Initial* values have been written. On
-	// first frame the factory seeds Center/Zoom from Cfg and sets
-	// Seeded=true. Subsequent frames read the registry verbatim.
-	Seeded bool
 }
 
 // panState tracks an in-progress drag pan. Stored in a separate
@@ -38,33 +38,46 @@ type panState struct {
 	StartZoom uint32
 }
 
-const nsPan = "mapview.pan"
+// lastFired records the MapState last passed to OnMove / OnZoomChange
+// so the next frame can detect deltas. Set=false means "no baseline
+// yet" and suppresses the synthetic first-frame change event.
+type lastFired struct {
+	State MapState
+	Set   bool
+}
+
+// nsRead and nsWrite are the only state-registry primitives used by
+// this package. Eight specialized read/write pairs collapsed into
+// these two so callers can never accidentally bypass the namespace
+// constants by reaching for gui.StateMap directly.
+func nsRead[V any](w *gui.Window, ns, id string) V {
+	var zero V
+	return gui.StateReadOr[string, V](w, ns, id, zero)
+}
+
+func nsWrite[V any](w *gui.Window, ns, id string, v V) {
+	gui.StateMap[string, V](w, ns, capMaps).Set(id, v)
+}
 
 // readState returns the current MapState for id, seeding it from seed
-// if the registry has no entry yet. Callers treat the result as a
-// value snapshot; writes go through writeState.
+// if the registry has no entry yet. The seed branch is the reason
+// readState exists — every other reader uses nsRead directly.
 func readState(w *gui.Window, id string, seed MapState) MapState {
 	sm := gui.StateMap[string, MapState](w, nsState, capMaps)
 	if s, ok := sm.Get(id); ok {
 		return s
 	}
-	seed.Seeded = true
 	sm.Set(id, seed)
 	return seed
 }
 
-func readPan(w *gui.Window, id string) panState {
-	return gui.StateReadOr[string, panState](w, nsPan, id, panState{})
-}
-
-func writePan(w *gui.Window, id string, p panState) {
-	gui.StateMap[string, panState](w, nsPan, capMaps).Set(id, p)
-}
-
 // Snapshot returns the current MapState for the map with the given
-// ID. Returns the zero value if the map has not yet rendered.
-func Snapshot(w *gui.Window, id string) MapState {
-	return gui.StateReadOr[string, MapState](w, nsState, id, MapState{})
+// ID. ok is false if the map has not yet rendered (in which case the
+// returned MapState is the zero value); callers must check ok before
+// trusting Center/Zoom — the zero value is a real point on the
+// equator, not a sentinel.
+func Snapshot(w *gui.Window, id string) (s MapState, ok bool) {
+	return gui.StateMap[string, MapState](w, nsState, capMaps).Get(id)
 }
 
 // PanTo recenters the map on the given LatLng. Zoom is unchanged.

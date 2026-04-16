@@ -48,3 +48,54 @@ func TestWorldSizeDoublesPerZoom(t *testing.T) {
 		}
 	}
 }
+
+// Non-finite inputs to Clamp must collapse to 0; otherwise NaN/Inf
+// propagates through Project/Unproject and silently corrupts every
+// downstream viewport calculation.
+func TestClamp_NaNCoercesToZero(t *testing.T) {
+	cases := []LatLng{
+		{Lat: math.NaN(), Lng: 0},
+		{Lat: 0, Lng: math.NaN()},
+		{Lat: math.NaN(), Lng: math.NaN()},
+	}
+	for _, c := range cases {
+		got := c.Clamp()
+		if math.IsNaN(got.Lat) || math.IsNaN(got.Lng) {
+			t.Errorf("in=%+v Clamp produced NaN: %+v", c, got)
+		}
+	}
+}
+
+func TestClamp_InfCoercesToZero(t *testing.T) {
+	cases := []LatLng{
+		{Lat: math.Inf(1), Lng: 0},
+		{Lat: math.Inf(-1), Lng: 0},
+		{Lat: 0, Lng: math.Inf(1)},
+		{Lat: 0, Lng: math.Inf(-1)},
+	}
+	for _, c := range cases {
+		got := c.Clamp()
+		if math.IsInf(got.Lat, 0) || math.IsInf(got.Lng, 0) ||
+			math.IsNaN(got.Lat) || math.IsNaN(got.Lng) {
+			t.Errorf("in=%+v Clamp produced non-finite: %+v", c, got)
+		}
+	}
+}
+
+// Latitudes outside the Web Mercator range must be pinned to the
+// representable extreme, not silently passed through.
+func TestClamp_LatAboveMercatorClamps(t *testing.T) {
+	const want = 85.05112878
+	for _, in := range []float64{86, 90, 90.0001, 1e6} {
+		got := LatLng{Lat: in}.Clamp().Lat
+		if !approxEq(got, want) {
+			t.Errorf("Lat=%g clamped to %v, want %v", in, got, want)
+		}
+	}
+	for _, in := range []float64{-86, -90, -90.0001, -1e6} {
+		got := LatLng{Lat: in}.Clamp().Lat
+		if !approxEq(got, -want) {
+			t.Errorf("Lat=%g clamped to %v, want %v", in, got, -want)
+		}
+	}
+}

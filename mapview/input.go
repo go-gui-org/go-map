@@ -1,22 +1,30 @@
 package mapview
 
 import (
+	"math"
+
 	"github.com/mike-ward/go-gui/gui"
 	"github.com/mike-ward/go-map/projection"
 	"github.com/mike-ward/go-map/tile"
 )
 
-// onClick starts a drag-pan session. OnClick fires on mouse-down for
-// DrawCanvas; MouseLock takes over subsequent mouse-move and
-// mouse-up events so the drag survives cursor travel outside the
-// widget bounds.
-func onClick(id string, src tile.Source) func(*gui.Layout, *gui.Event, *gui.Window) {
+// onClick handles mouse-down on the canvas. HUD buttons get a hit
+// test first so the recenter button does not trigger a drag-pan;
+// otherwise a drag-pan session begins. MouseLock takes over the
+// subsequent mouse-move and mouse-up events so the drag survives
+// cursor travel outside the widget bounds.
+func onClick(id string, seed MapState) func(*gui.Layout, *gui.Event, *gui.Window) {
 	return func(l *gui.Layout, e *gui.Event, w *gui.Window) {
-		s := gui.StateReadOr[string, MapState](w, nsState, id, MapState{})
+		if homeButtonHit(l.Shape.Width, e.MouseX, e.MouseY) {
+			nsWrite(w, nsState, id, seed)
+			e.IsHandled = true
+			return
+		}
+		s := nsRead[MapState](w, nsState, id)
 		// OnClick delivers widget-local coords; MouseLock callbacks
 		// deliver absolute coords. Store absolute to keep the delta
 		// math single-space across the drag.
-		writePan(w, id, panState{
+		nsWrite(w, nsPan, id, panState{
 			Active:    true,
 			StartX:    e.MouseX + l.Shape.X,
 			StartY:    e.MouseY + l.Shape.Y,
@@ -28,13 +36,17 @@ func onClick(id string, src tile.Source) func(*gui.Layout, *gui.Event, *gui.Wind
 			MouseUp:   panDragEnd(id),
 		})
 		e.IsHandled = true
-		_ = src
 	}
+}
+
+func homeButtonHit(canvasW, mx, my float32) bool {
+	x, y, w, h := homeButtonRect(canvasW)
+	return mx >= x && mx < x+w && my >= y && my < y+h
 }
 
 func panDragMove(id string) func(*gui.Layout, *gui.Event, *gui.Window) {
 	return func(_ *gui.Layout, e *gui.Event, w *gui.Window) {
-		p := readPan(w, id)
+		p := nsRead[panState](w, nsPan, id)
 		if !p.Active {
 			return
 		}
@@ -49,36 +61,48 @@ func panDragMove(id string) func(*gui.Layout, *gui.Event, *gui.Window) {
 			Y: startPt.Y + float64(dy),
 		}, p.StartZoom)
 
-		sm := gui.StateMap[string, MapState](w, nsState, capMaps)
-		s, _ := sm.Get(id)
+		s := nsRead[MapState](w, nsState, id)
 		s.Center = newCtr.Clamp()
-		sm.Set(id, s)
+		nsWrite(w, nsState, id, s)
 		e.IsHandled = true
 	}
 }
 
 func panDragEnd(id string) func(*gui.Layout, *gui.Event, *gui.Window) {
 	return func(_ *gui.Layout, _ *gui.Event, w *gui.Window) {
-		p := readPan(w, id)
+		p := nsRead[panState](w, nsPan, id)
 		p.Active = false
-		writePan(w, id, p)
+		nsWrite(w, nsPan, id, p)
 		w.MouseUnlock()
 	}
 }
 
-// onMouseScroll handles wheel zoom. Positive scrollY zooms in;
-// negative zooms out. Zoom pivots toward the cursor so the LatLng
-// under the cursor stays fixed across the transition.
+// onMouseScroll handles wheel zoom. Positive ScrollY zooms in;
+// negative zooms out. Fractional scroll (trackpad pixel-scroll)
+// accumulates until it crosses scrollZoomStep, then fires one zoom
+// tick per crossing — keeping the integer-zoom MVP responsive to
+// either notch wheels or smooth trackpads. Zoom pivots toward the
+// cursor so the LatLng under the cursor stays fixed.
 func onMouseScroll(id string, src tile.Source) func(*gui.Layout, *gui.Event, *gui.Window) {
 	return func(l *gui.Layout, e *gui.Event, w *gui.Window) {
 		if e.ScrollY == 0 {
 			return
 		}
-		delta := int32(1)
-		if e.ScrollY < 0 {
-			delta = -1
+		// Reject NaN/±Inf scroll deltas before they pollute the
+		// accumulator — once stuck, every future event would yield
+		// NaN+x = NaN and the wheel would silently stop zooming.
+		if f := float64(e.ScrollY); math.IsNaN(f) || math.IsInf(f, 0) {
+			return
 		}
-		s := gui.StateReadOr[string, MapState](w, nsState, id, MapState{})
+		acc := nsRead[float32](w, nsScroll, id) + e.ScrollY
+		delta, acc := scrollSteps(acc)
+		nsWrite(w, nsScroll, id, acc)
+		if delta == 0 {
+			e.IsHandled = true
+			return
+		}
+
+		s := nsRead[MapState](w, nsState, id)
 		newZoom := int32(s.Zoom) + delta
 		if newZoom < 0 {
 			newZoom = 0
@@ -87,6 +111,7 @@ func onMouseScroll(id string, src tile.Source) func(*gui.Layout, *gui.Event, *gu
 			newZoom = maxFromSrc
 		}
 		if uint32(newZoom) == s.Zoom {
+			e.IsHandled = true
 			return
 		}
 		newCtr := zoomToward(
@@ -95,12 +120,43 @@ func onMouseScroll(id string, src tile.Source) func(*gui.Layout, *gui.Event, *gu
 			l.Shape.Width, l.Shape.Height,
 		)
 
-		sm := gui.StateMap[string, MapState](w, nsState, capMaps)
 		s.Center = newCtr
 		s.Zoom = uint32(newZoom)
-		sm.Set(id, s)
+		nsWrite(w, nsState, id, s)
 		e.IsHandled = true
 	}
+}
+
+// scrollZoomStep is the accumulator threshold at which one zoom tick
+// fires. Mouse-wheel notches typically deliver |ScrollY|≥1 per event
+// and zoom on contact; trackpad pixel-scroll delivers small
+// increments and integrates over several events.
+const scrollZoomStep float32 = 1.0
+
+// maxScrollAccum bounds the accumulator before it is consumed. A
+// runaway scroll event (or many events between consumes) cannot make
+// the loop body iterate more than this many times — the user only
+// gets to zoom one step per tick anyway, so capping is observable
+// only to abusive input.
+const maxScrollAccum float32 = 64
+
+// scrollSteps consumes integer zoom ticks from the accumulator and
+// returns the residual. NaN flushes to zero (it cannot drive zoom
+// and would otherwise re-enter the accumulator). Magnitudes are
+// capped to maxScrollAccum so a single huge ScrollY cannot let the
+// computed delta dwarf int32. Pure function — Window-free, testable.
+func scrollSteps(acc float32) (delta int32, residual float32) {
+	if math.IsNaN(float64(acc)) {
+		return 0, 0
+	}
+	if acc > maxScrollAccum {
+		acc = maxScrollAccum
+	} else if acc < -maxScrollAccum {
+		acc = -maxScrollAccum
+	}
+	delta = int32(acc / scrollZoomStep)
+	residual = acc - float32(delta)*scrollZoomStep
+	return
 }
 
 // zoomToward returns the new map center so that the LatLng under the
@@ -126,23 +182,20 @@ func zoomToward(
 	return projection.Unproject(newCtrPx, newZoom).Clamp()
 }
 
-// onMouseMove records the hover position for the coord readout.
 func onMouseMove(id string) func(*gui.Layout, *gui.Event, *gui.Window) {
 	return func(_ *gui.Layout, e *gui.Event, w *gui.Window) {
-		writeHover(w, id, hoverState{X: e.MouseX, Y: e.MouseY, Valid: true})
+		nsWrite(w, nsHover, id, hoverState{X: e.MouseX, Y: e.MouseY, Valid: true})
 	}
 }
 
 // onMouseLeave clears the hover so the coord readout falls back to
-// the map center.
+// the map center, matching the convention "no cursor → center".
 func onMouseLeave(id string) func(*gui.Layout, *gui.Event, *gui.Window) {
 	return func(_ *gui.Layout, _ *gui.Event, w *gui.Window) {
-		writeHover(w, id, hoverState{})
+		nsWrite(w, nsHover, id, hoverState{})
 	}
 }
 
-// sourceMaxZoom returns the tile source's cap or the global maxZoom
-// when no source is configured.
 func sourceMaxZoom(src tile.Source) uint32 {
 	if src == nil {
 		return maxZoom
@@ -193,7 +246,7 @@ func onKeyDown(id string, src tile.Source, seed MapState) func(*gui.Layout, *gui
 			handled = false
 		}
 		if handled {
-			gui.StateMap[string, MapState](w, nsState, capMaps).Set(id, s)
+			nsWrite(w, nsState, id, s)
 			e.IsHandled = true
 		}
 	}

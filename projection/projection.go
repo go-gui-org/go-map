@@ -4,16 +4,12 @@ package projection
 
 import "math"
 
-// LatLng is a WGS84 coordinate in degrees.
+// LatLng is a WGS84 coordinate in degrees. Latitudes outside the
+// Web Mercator range (±85.05112878) are clamped by Clamp; longitudes
+// wrap into the canonical (-180, 180] range.
 type LatLng struct {
-	Lat float64 // -90..90
-	Lng float64 // -180..180
-}
-
-// Bounds is an axis-aligned rectangle in WGS84 coordinates.
-type Bounds struct {
-	SW LatLng
-	NE LatLng
+	Lat float64 // -85.05..85.05 after Clamp
+	Lng float64 // -180..180   after Clamp
 }
 
 // Point is a 2D pixel position.
@@ -28,10 +24,21 @@ const TileSize = 256
 // (where the projection diverges). Standard slippy value.
 const maxMercatorLat = 85.05112878
 
-// Clamp returns a LatLng bounded by Web Mercator limits.
+// Clamp returns a LatLng bounded by Web Mercator limits. NaN and ±Inf
+// inputs are replaced with 0; otherwise math operations would
+// propagate them through Project/Unproject and silently corrupt all
+// downstream viewport state.
 func (p LatLng) Clamp() LatLng {
-	lat := math.Max(-maxMercatorLat, math.Min(maxMercatorLat, p.Lat))
-	lng := math.Mod(p.Lng+540, 360) - 180
+	lat := p.Lat
+	if math.IsNaN(lat) || math.IsInf(lat, 0) {
+		lat = 0
+	}
+	lng := p.Lng
+	if math.IsNaN(lng) || math.IsInf(lng, 0) {
+		lng = 0
+	}
+	lat = math.Max(-maxMercatorLat, math.Min(maxMercatorLat, lat))
+	lng = math.Mod(lng+540, 360) - 180
 	return LatLng{Lat: lat, Lng: lng}
 }
 
