@@ -23,8 +23,11 @@ type viewport struct {
 	OriginY float32
 }
 
-func computeViewport(dc *gui.DrawContext, s MapState) viewport {
-	vp := viewport{W: dc.Width, H: dc.Height, Zoom: s.Zoom}
+// computeViewport derives the screen → world mapping for the given
+// canvas size and map state. Kept pure (no DrawContext) so viewport
+// math is unit-testable without a running window.
+func computeViewport(w, h float32, s MapState) viewport {
+	vp := viewport{W: w, H: h, Zoom: s.Zoom}
 	vp.CtrPx = projection.Project(s.Center, s.Zoom)
 	vp.OriginX = float32(vp.CtrPx.X) - vp.W/2
 	vp.OriginY = float32(vp.CtrPx.Y) - vp.H/2
@@ -35,6 +38,13 @@ func computeViewport(dc *gui.DrawContext, s MapState) viewport {
 	vp.MaxTX = int32(math.Floor(float64(vp.OriginX+vp.W) / ts))
 	vp.MaxTY = int32(math.Floor(float64(vp.OriginY+vp.H) / ts))
 	return vp
+}
+
+// wrapTileX maps a (possibly negative or out-of-range) tile-x index
+// into [0, maxN) so viewports that straddle the antimeridian pull
+// the correct tiles. maxN must be >= 1.
+func wrapTileX(tx, maxN int32) uint32 {
+	return uint32(((tx % maxN) + maxN) % maxN)
 }
 
 // tileScreenPos returns the top-left screen-pixel position of the
@@ -72,14 +82,14 @@ func drawTiles(dc *gui.DrawContext, vp viewport, src tile.Source) {
 			continue
 		}
 		for tx := vp.MinTX; tx <= vp.MaxTX; tx++ {
-			wrapped := ((tx % maxN) + maxN) % maxN
+			wrapped := wrapTileX(tx, maxN)
 			x, y := vp.tileScreenPos(tx, ty)
 
 			var url string
 			if src != nil {
 				url = src.URL(tile.Coord{
 					Z: vp.Zoom,
-					X: uint32(wrapped),
+					X: wrapped,
 					Y: uint32(ty),
 				})
 			}
@@ -89,13 +99,13 @@ func drawTiles(dc *gui.DrawContext, vp viewport, src tile.Source) {
 			}
 			// Placeholder.
 			c := even
-			if (wrapped+ty)&1 == 1 {
+			if (int32(wrapped)+ty)&1 == 1 {
 				c = odd
 			}
 			dc.FilledRect(x, y, ts, ts, c)
 			dc.Rect(x, y, ts, ts, border, 1)
 			dc.Text(x+6, y+4,
-				(tile.Coord{Z: vp.Zoom, X: uint32(wrapped), Y: uint32(ty)}).String(),
+				(tile.Coord{Z: vp.Zoom, X: wrapped, Y: uint32(ty)}).String(),
 				labelStyle)
 		}
 	}

@@ -100,7 +100,7 @@ func (mv *mapView) GenerateLayout(w *gui.Window) gui.Layout {
 	src := c.Source
 	hover := readHover(w, c.ID)
 	onDraw := func(dc *gui.DrawContext) {
-		vp := computeViewport(dc, s)
+		vp := computeViewport(dc.Width, dc.Height, s)
 		drawTiles(dc, vp, src)
 		drawCoordReadout(dc, vp, s, hover)
 		drawZoomIndicator(dc, s.Zoom)

@@ -89,29 +89,11 @@ func onMouseScroll(id string, src tile.Source) func(*gui.Layout, *gui.Event, *gu
 		if uint32(newZoom) == s.Zoom {
 			return
 		}
-		// Cursor anchor: screen coords are relative to layout.Shape
-		// after dispatch; mouse coords arrive widget-local.
-		cx := e.MouseX
-		cy := e.MouseY
-		widgetW := l.Shape.Width
-		widgetH := l.Shape.Height
-		// Recompute center so the LatLng under the cursor is stable.
-		// World-pixel scale doubles per zoom step.
-		oldCtrPx := projection.Project(s.Center, s.Zoom)
-		// LatLng under cursor at old zoom
-		cursorPxOld := projection.Point{
-			X: oldCtrPx.X + float64(cx-widgetW/2),
-			Y: oldCtrPx.Y + float64(cy-widgetH/2),
-		}
-		cursorLL := projection.Unproject(cursorPxOld, s.Zoom)
-		// Recompute new center: cursorLL's new world-px minus the
-		// same screen offset.
-		cursorPxNew := projection.Project(cursorLL, uint32(newZoom))
-		newCtrPx := projection.Point{
-			X: cursorPxNew.X - float64(cx-widgetW/2),
-			Y: cursorPxNew.Y - float64(cy-widgetH/2),
-		}
-		newCtr := projection.Unproject(newCtrPx, uint32(newZoom)).Clamp()
+		newCtr := zoomToward(
+			s, uint32(newZoom),
+			e.MouseX, e.MouseY,
+			l.Shape.Width, l.Shape.Height,
+		)
 
 		sm := gui.StateMap[string, MapState](w, nsState, capMaps)
 		s.Center = newCtr
@@ -119,6 +101,29 @@ func onMouseScroll(id string, src tile.Source) func(*gui.Layout, *gui.Event, *gu
 		sm.Set(id, s)
 		e.IsHandled = true
 	}
+}
+
+// zoomToward returns the new map center so that the LatLng under the
+// cursor at (cx, cy) stays fixed across the zoom transition. widgetW
+// and widgetH are the canvas dimensions at the time of the event.
+// Pure function — no Window or state-registry access — so the
+// invariant is unit-testable.
+func zoomToward(
+	s MapState, newZoom uint32,
+	cx, cy, widgetW, widgetH float32,
+) projection.LatLng {
+	oldCtrPx := projection.Project(s.Center, s.Zoom)
+	cursorPxOld := projection.Point{
+		X: oldCtrPx.X + float64(cx-widgetW/2),
+		Y: oldCtrPx.Y + float64(cy-widgetH/2),
+	}
+	cursorLL := projection.Unproject(cursorPxOld, s.Zoom)
+	cursorPxNew := projection.Project(cursorLL, newZoom)
+	newCtrPx := projection.Point{
+		X: cursorPxNew.X - float64(cx-widgetW/2),
+		Y: cursorPxNew.Y - float64(cy-widgetH/2),
+	}
+	return projection.Unproject(newCtrPx, newZoom).Clamp()
 }
 
 // onMouseMove records the hover position for the coord readout.
