@@ -37,7 +37,7 @@ const (
 // snapshot type small.
 type MapState struct {
 	Center           projection.LatLng
-	Zoom             uint32
+	Zoom             float64
 	FocusedOverlayID string
 	InfoOpen         bool
 	InfoFocusIndex   int8
@@ -55,7 +55,7 @@ type panState struct {
 	LocalX    float32 // mouse down position (widget-local coords)
 	LocalY    float32
 	StartCtr  projection.LatLng // center at drag start
-	StartZoom uint32
+	StartZoom float64
 	CanvasW   float32
 	CanvasH   float32
 }
@@ -114,34 +114,46 @@ func PanTo(w *gui.Window, id string, c projection.LatLng) {
 	sm.Set(id, s)
 }
 
-// SetZoom updates the zoom level, clamped to [0, maxZoom]. Center
-// unchanged. No-op if the map ID has not yet rendered.
-func SetZoom(w *gui.Window, id string, zoom uint32) {
+// SetZoom updates the zoom level, clamped to [0, maxZoomF]. NaN/±Inf
+// collapse to 0. Center unchanged. No-op if the map ID has not yet
+// rendered.
+func SetZoom(w *gui.Window, id string, zoom float64) {
 	sm := gui.StateMap[string, MapState](w, nsState, capMaps)
 	s, ok := sm.Get(id)
 	if !ok {
 		return
 	}
-	if zoom > maxZoom {
-		zoom = maxZoom
-	}
-	s.Zoom = zoom
+	s.Zoom = clampZoom(zoom)
 	sm.Set(id, s)
 }
 
-// SetView replaces both center and zoom atomically.
-func SetView(w *gui.Window, id string, c projection.LatLng, zoom uint32) {
+// SetView replaces both center and zoom atomically. Zoom is clamped
+// via clampZoom so a stray NaN / ±Inf cannot reach MapState.
+func SetView(w *gui.Window, id string, c projection.LatLng, zoom float64) {
 	sm := gui.StateMap[string, MapState](w, nsState, capMaps)
 	s, ok := sm.Get(id)
 	if !ok {
 		return
 	}
-	if zoom > maxZoom {
-		zoom = maxZoom
-	}
 	s.Center = c.Clamp()
-	s.Zoom = zoom
+	s.Zoom = clampZoom(zoom)
 	sm.Set(id, s)
+}
+
+// clampZoom coerces a zoom value into the renderable range. NaN and
+// ±Inf collapse to 0 so MapState.Zoom is always a finite number in
+// [0, maxZoomF] — this lets fireDecision compare states with plain
+// struct equality and keeps every downstream projection call safe
+// from poisoned inputs. The single helper replaces eight inline repeats
+// of the same guard across the zoom write paths.
+func clampZoom(z float64) float64 {
+	if !isFinite(z) || z < 0 {
+		return 0
+	}
+	if z > maxZoomF {
+		return maxZoomF
+	}
+	return z
 }
 
 // capOverlaysPerMap is the FIFO eviction ceiling applied by the inner
@@ -187,9 +199,11 @@ func ClearOverlays(w *gui.Window, id string) {
 	readOverlays(w, id).Clear()
 }
 
-// FitBounds centers the map on b and picks the largest integer zoom at
+// FitBounds centers the map on b and picks the fractional zoom at
 // which b fits inside (canvasW × canvasH) after inset by padding pixels
-// on all sides. No-op if the map has not rendered, b is zero, b is
+// on all sides. Analytical: zoom = min(log2(availW/dx0), log2(availH/dy0))
+// where dx0, dy0 are the bounds extent in world pixels at z=0. Clamped
+// to [0, maxZoomF]. No-op if the map has not rendered, b is zero, b is
 // inverted (NE below/west of SW), or any dimension is non-finite /
 // non-positive. Antimeridian-straddling bounds are not supported.
 func FitBounds(w *gui.Window, id string, b projection.Bounds, padding float32, canvasW, canvasH float32) {
@@ -201,7 +215,7 @@ func FitBounds(w *gui.Window, id string, b projection.Bounds, padding float32, c
 	if !finitePositive(float64(canvasW)) || !finitePositive(float64(canvasH)) {
 		return
 	}
-	if math.IsNaN(float64(padding)) || math.IsInf(float64(padding), 0) || padding < 0 {
+	if !isFiniteF32(padding) || padding < 0 {
 		padding = 0
 	}
 	if b.NE.Lat < b.SW.Lat || b.NE.Lng < b.SW.Lng {
@@ -209,32 +223,46 @@ func FitBounds(w *gui.Window, id string, b projection.Bounds, padding float32, c
 	}
 	availW := canvasW - 2*padding
 	availH := canvasH - 2*padding
-	if availW <= 0 || availH <= 0 {
+	// availW / availH <= 0 (padding consumes the whole canvas) is NOT
+	// an early return — log2 of a non-positive ratio produces NaN or
+	// -Inf, which clampZoom collapses to 0 below. Plan §5a calls for
+	// Zoom=0 on that input so the map re-centers on bounds even when
+	// the author asked for more padding than fits.
+	// Measure bounds extent at z=0 (one tile-size world) so the log2
+	// ratios yield zoom directly. A degenerate bounds (both corners
+	// project to the same point — e.g. a single-point Bounds) makes
+	// dx/dy zero; treat that as "fits at max zoom" rather than
+	// dividing by zero.
+	ne := projection.ProjectF(b.NE, 0)
+	sw := projection.ProjectF(b.SW, 0)
+	dx := ne.X - sw.X
+	dy := sw.Y - ne.Y
+	if dx < 0 || dy < 0 {
 		return
 	}
-	best := uint32(0)
-	for z := uint32(0); z <= maxZoom; z++ {
-		ne := projection.Project(b.NE, z)
-		sw := projection.Project(b.SW, z)
-		wpx := ne.X - sw.X
-		hpx := sw.Y - ne.Y
-		if wpx < 0 || hpx < 0 {
-			// Projection surprised us (clamped-away polar inputs can
-			// collapse the box). Stop searching rather than accept a
-			// spurious "fits" result.
-			break
-		}
-		if wpx <= float64(availW) && hpx <= float64(availH) {
-			best = z
-		} else {
-			break
-		}
+	// Degenerate (dx==0 or dy==0) axes go straight to max zoom so the
+	// other axis still gets to tighten the fit. availW / availH <= 0
+	// (padding consumes canvas) makes the ratio non-positive; log2
+	// returns NaN / -Inf which propagates through math.Min and
+	// collapses to 0 in clampZoom — matches plan §5a "padding consumes
+	// entire canvas → Zoom=0".
+	zx := maxZoomF
+	if dx > 0 {
+		zx = math.Log2(float64(availW) / dx)
+	}
+	zy := maxZoomF
+	if dy > 0 {
+		zy = math.Log2(float64(availH) / dy)
 	}
 	s.Center = b.Center().Clamp()
-	s.Zoom = best
+	s.Zoom = clampZoom(math.Min(zx, zy))
 	sm.Set(id, s)
 }
 
-// maxZoom is the global zoom ceiling. Tile sources may cap lower via
-// their own MaxZoom(); input handlers consult that at call time.
+// maxZoom is the global zoom ceiling for tile paths (tile.Coord.Z
+// stays uint32). maxZoomF is the float clamp used by MapState.Zoom and
+// every fractional write path. They track the same numeric value;
+// maxZoomF is derived so bumping maxZoom never leaves the float clamp
+// lagging.
 const maxZoom uint32 = 22
+const maxZoomF = float64(maxZoom)

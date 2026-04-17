@@ -20,16 +20,28 @@ func TestMap_PanicsOnEmptyID(t *testing.T) {
 	_ = Map(Cfg{})
 }
 
-// InitialZoom > maxZoom must clamp at construction so the seed
+// InitialZoom > maxZoomF must clamp at construction so the seed
 // (and therefore the Home key) lands inside the renderable range.
 func TestMap_ClampsInitialZoom(t *testing.T) {
-	v := Map(Cfg{ID: "x", InitialZoom: maxZoom + 10})
+	v := Map(Cfg{ID: "x", InitialZoom: maxZoomF + 10})
 	mv, ok := v.(*mapView)
 	if !ok {
 		t.Fatalf("Map returned %T, want *mapView", v)
 	}
-	if mv.cfg.InitialZoom != maxZoom {
-		t.Errorf("InitialZoom = %d, want %d", mv.cfg.InitialZoom, maxZoom)
+	if mv.cfg.InitialZoom != maxZoomF {
+		t.Errorf("InitialZoom = %g, want %g", mv.cfg.InitialZoom, maxZoomF)
+	}
+}
+
+// NaN / ±Inf in InitialZoom must collapse to the default seed (2),
+// not propagate through the registry.
+func TestMap_SanitizesInitialZoomNonFinite(t *testing.T) {
+	for _, z := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
+		v := Map(Cfg{ID: "x", InitialZoom: z})
+		mv := v.(*mapView)
+		if math.IsNaN(mv.cfg.InitialZoom) || math.IsInf(mv.cfg.InitialZoom, 0) {
+			t.Errorf("InitialZoom=%v not sanitized: got %v", z, mv.cfg.InitialZoom)
+		}
 	}
 }
 

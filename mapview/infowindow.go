@@ -1,8 +1,6 @@
 package mapview
 
 import (
-	"math"
-
 	"github.com/mike-ward/go-gui/gui"
 )
 
@@ -199,9 +197,10 @@ func clearInfoRect(w *gui.Window, id string) {
 // isFiniteF32 reports whether v is a real finite number (not NaN and
 // not ±Inf). Drawing paths use this before feeding coords to the
 // DrawContext so a single bad value cannot poison the triangle batch.
+// Delegates to isFinite so every "reject non-finite" guard in the
+// package reads from the same source.
 func isFiniteF32(v float32) bool {
-	f := float64(v)
-	return !math.IsNaN(f) && !math.IsInf(f, 0)
+	return isFinite(float64(v))
 }
 
 // drawInfoWindow paints the popup box anchored to (mx, my) — the

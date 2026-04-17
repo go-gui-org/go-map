@@ -99,25 +99,68 @@ func (p LatLng) Clamp() LatLng {
 }
 
 // WorldSize returns the total pixel edge length of the world at zoom z.
-// Equals TileSize * 2^z.
+// Equals TileSize * 2^z. Integer-zoom variant retained for tile-grid
+// math where z always indexes a real tile level. Uses a shift rather
+// than delegating to WorldSizeF (which would add a NaN/±Inf/negative-z
+// branch) because integer-z callers run on the per-tile hot path;
+// results agree bit-for-bit with WorldSizeF(float64(z)) in the
+// renderable range.
 func WorldSize(z uint32) float64 {
 	return float64(TileSize) * float64(uint64(1)<<z)
 }
 
-// Project converts a LatLng to world pixel coordinates at zoom z.
+// WorldSizeF returns the total pixel edge length of the world at
+// fractional zoom z. Equals TileSize * 2^z. Negative or non-finite
+// inputs collapse to the z=0 world size so downstream math never
+// receives NaN / ±Inf. Callers are expected to clamp z to
+// [0, maxZoomF] before projecting; this guard is a belt.
+func WorldSizeF(z float64) float64 {
+	if math.IsNaN(z) || math.IsInf(z, 0) {
+		return float64(TileSize)
+	}
+	if z < 0 {
+		z = 0
+	}
+	return float64(TileSize) * math.Exp2(z)
+}
+
+// Project converts a LatLng to world pixel coordinates at integer zoom z.
 // Origin (0,0) is the top-left of tile (z,0,0).
 func Project(p LatLng, z uint32) Point {
+	return ProjectF(p, float64(z))
+}
+
+// ProjectF is the float-zoom variant of Project. At integer z the
+// result agrees with Project bit-for-bit (WorldSize(z) == WorldSizeF(z)
+// for integer z in [0, 63]); fractional z scales the world linearly
+// with the zoom factor.
+func ProjectF(p LatLng, z float64) Point {
 	p = p.Clamp()
-	size := WorldSize(z)
+	size := WorldSizeF(z)
 	x := (p.Lng + 180) / 360 * size
 	sinLat := math.Sin(p.Lat * math.Pi / 180)
 	y := (0.5 - math.Log((1+sinLat)/(1-sinLat))/(4*math.Pi)) * size
 	return Point{X: x, Y: y}
 }
 
-// Unproject converts world pixel coordinates to a LatLng at zoom z.
+// Unproject converts world pixel coordinates to a LatLng at integer
+// zoom z.
 func Unproject(pt Point, z uint32) LatLng {
-	size := WorldSize(z)
+	return UnprojectF(pt, float64(z))
+}
+
+// UnprojectF is the float-zoom variant of Unproject. NaN input on
+// either Point axis collapses to the zero LatLng — propagating NaN
+// would poison any subsequent projection math the caller performs
+// (e.g. zoomToward's cursor-anchor invariant). ±Inf on Y naturally
+// saturates at the Mercator pole via Atan; guard it alongside NaN for
+// uniformity so a caller can trust the return is always finite.
+func UnprojectF(pt Point, z float64) LatLng {
+	if math.IsNaN(pt.X) || math.IsNaN(pt.Y) ||
+		math.IsInf(pt.X, 0) || math.IsInf(pt.Y, 0) {
+		return LatLng{}
+	}
+	size := WorldSizeF(z)
 	lng := pt.X/size*360 - 180
 	n := math.Pi - 2*math.Pi*pt.Y/size
 	lat := 180 / math.Pi * math.Atan(math.Sinh(n))

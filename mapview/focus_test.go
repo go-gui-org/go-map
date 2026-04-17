@@ -637,7 +637,7 @@ func TestHandleFocusKey_EnterActionPreservesCallbackMutations(t *testing.T) {
 	}
 	got, _ := Snapshot(w, id)
 	if got.Zoom != 15 {
-		t.Fatalf("SetZoom inside action callback was lost: zoom=%d want 15", got.Zoom)
+		t.Fatalf("SetZoom inside action callback was lost: zoom=%g want 15", got.Zoom)
 	}
 	if got.InfoOpen {
 		t.Fatalf("popup must be closed after action fires")
@@ -662,7 +662,7 @@ func TestHandleFocusKey_EnterOpensPopupPreservesOnPOISelectMutations(t *testing.
 	}
 	got, _ := Snapshot(w, id)
 	if got.Zoom != 18 {
-		t.Fatalf("OnPOISelect SetZoom lost: zoom=%d want 18", got.Zoom)
+		t.Fatalf("OnPOISelect SetZoom lost: zoom=%g want 18", got.Zoom)
 	}
 	if !got.InfoOpen {
 		t.Fatalf("popup must stay open after OnPOISelect fires")
@@ -765,7 +765,7 @@ func TestHandleFocusKey_EnterTitlelessMarkerFiresOnPOISelect(t *testing.T) {
 	}
 	got, _ := Snapshot(w, id)
 	if got.Zoom != 18 {
-		t.Fatalf("OnPOISelect SetZoom lost: zoom=%d want 18", got.Zoom)
+		t.Fatalf("OnPOISelect SetZoom lost: zoom=%g want 18", got.Zoom)
 	}
 }
 

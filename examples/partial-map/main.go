@@ -64,7 +64,7 @@ func detailPanel(w *gui.Window) gui.View {
 		body = append(body, gui.Text(gui.TextCfg{Text: "(rendering…)"}))
 	} else {
 		body = append(body,
-			gui.Text(gui.TextCfg{Text: fmt.Sprintf("Zoom: %d", s.Zoom)}),
+			gui.Text(gui.TextCfg{Text: fmt.Sprintf("Zoom: %g", s.Zoom)}),
 			gui.Text(gui.TextCfg{Text: fmt.Sprintf("Lat: %.4f°", s.Center.Lat)}),
 			gui.Text(gui.TextCfg{Text: fmt.Sprintf("Lng: %.4f°", s.Center.Lng)}),
 		)

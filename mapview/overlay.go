@@ -18,9 +18,12 @@ type Projector interface {
 	// into screen pixels for the current zoom. Used by Circle overlays
 	// so radii expressed in meters scale correctly with zoom.
 	MetersToPixels(lat, meters float64) float32
-	// Zoom reports the active integer zoom level. Overlays may use it
-	// for level-of-detail culling; cheap to ignore.
-	Zoom() uint32
+	// Zoom reports the active fractional zoom level. Overlays may use
+	// it for level-of-detail culling; cheap to ignore. Fractional values
+	// occur after FitBounds / SetZoom / SetView writes; wheel and
+	// keyboard navigation still produce integer deltas so most frames
+	// sit on whole numbers.
+	Zoom() float64
 }
 
 // Overlay is the common contract for authorable map features. Drawn
@@ -62,9 +65,16 @@ func sanitizeStroke(w, fallback float32) float32 {
 	return w
 }
 
+// isFinite returns true when v is neither NaN nor ±Inf. Consolidated
+// so every "reject non-finite input" guard in the package (clampZoom,
+// zoomLabel, finitePositive, isFiniteF32) reads the same.
+func isFinite(v float64) bool {
+	return !math.IsNaN(v) && !math.IsInf(v, 0)
+}
+
 // finitePositive returns true when v is a finite value > 0.
 func finitePositive(v float64) bool {
-	return !math.IsNaN(v) && !math.IsInf(v, 0) && v > 0
+	return isFinite(v) && v > 0
 }
 
 // colorOr returns c when the author set it, fallback otherwise.

@@ -55,19 +55,35 @@ func drawCoordReadout(dc *gui.DrawContext, vp viewport, s MapState, h hoverState
 	if h.Valid {
 		ll = vp.screenToLatLng(h.X, h.Y)
 	}
-	text := fmt.Sprintf("z%d  %7.4f°, %8.4f°", vp.Z, ll.Lat, ll.Lng)
+	text := fmt.Sprintf("z%s  %7.4f°, %8.4f°", zoomLabel(vp.Z), ll.Lat, ll.Lng)
 	w, ch := chipMetrics(dc, text, hudStyle)
 	drawHUDChip(dc, 4, dc.Height-ch-4, w, ch, text, hudStyle)
 }
 
 // drawZoomIndicator renders a numeric zoom level top-right. Paired
 // with the attribution line but anchored top so the home button can
-// stack directly below.
-func drawZoomIndicator(dc *gui.DrawContext, z uint32) {
-	text := "z" + strconv.FormatUint(uint64(z), 10)
+// stack directly below. Integer-valued zooms render without a decimal;
+// fractional zooms (from FitBounds / SetZoom) show one digit so the
+// chip width stays stable across the wheel-nav rest states.
+func drawZoomIndicator(dc *gui.DrawContext, z float64) {
+	text := "z" + zoomLabel(z)
 	w, _ := chipMetrics(dc, text, hudStyle)
 	x := dc.Width - w - homeBtnMargin
 	drawHUDChip(dc, x, homeBtnMargin, w, zoomChipHeight, text, hudStyle)
+}
+
+// zoomLabel formats a zoom level for HUD chips and a11y strings.
+// Integer values read as "12"; fractional values read as "12.4".
+// Shared so the coord readout, zoom chip, and A11YDescription stay
+// phrased identically.
+func zoomLabel(z float64) string {
+	if !isFinite(z) || z < 0 {
+		return "0"
+	}
+	if math.Trunc(z) == z {
+		return strconv.FormatUint(uint64(z), 10)
+	}
+	return strconv.FormatFloat(z, 'f', 1, 64)
 }
 
 // homeButtonRect returns the screen rect of the home button. Used by
@@ -145,11 +161,13 @@ func drawScaleSegment(dc *gui.DrawContext, x, y, length, tickH float32, label st
 }
 
 // metersPerPixel returns the ground distance covered by one pixel at
-// the given latitude and zoom. Uses the equatorial circumference
-// scaled by cos(lat) — the standard Web Mercator approximation.
-func metersPerPixel(lat float64, z uint32) float64 {
+// the given latitude and fractional zoom. Uses the equatorial
+// circumference scaled by cos(lat) — the standard Web Mercator
+// approximation. Routes through WorldSizeF so the scalebar and Circle
+// overlays track the fractional zoom exactly.
+func metersPerPixel(lat, z float64) float64 {
 	const earthCircum = 40075016.686
-	return earthCircum * math.Cos(lat*math.Pi/180) / projection.WorldSize(z)
+	return earthCircum * math.Cos(lat*math.Pi/180) / projection.WorldSizeF(z)
 }
 
 // niceRound returns the largest "1, 2, 5 × 10^n" value at or below
@@ -243,8 +261,8 @@ type hoverState struct {
 // screen-reader hears focus changes first.
 func stateForA11Y(s MapState, focused *Marker) string {
 	base := fmt.Sprintf(
-		"Map centered at %.4f degrees latitude, %.4f degrees longitude, zoom level %d.",
-		s.Center.Lat, s.Center.Lng, s.Zoom,
+		"Map centered at %.4f degrees latitude, %.4f degrees longitude, zoom level %s.",
+		s.Center.Lat, s.Center.Lng, zoomLabel(s.Zoom),
 	)
 	if focused == nil {
 		return base

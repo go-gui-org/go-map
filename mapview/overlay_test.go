@@ -28,7 +28,7 @@ func (f fakeProjector) MetersToPixels(_ float64, meters float64) float32 {
 	return float32(meters) / f.mpp
 }
 
-func (f fakeProjector) Zoom() uint32 { return 10 }
+func (f fakeProjector) Zoom() float64 { return 10 }
 
 func TestMarker_HitTest(t *testing.T) {
 	p := projection.LatLng{Lat: 45, Lng: -122}
@@ -140,19 +140,25 @@ func TestFitBounds_SelectsFittingZoom(t *testing.T) {
 		t.Error("FitBounds picked zoom 0; should fit at a higher zoom")
 	}
 	// At the chosen zoom, the projected box must fit in 360x360.
-	ne := projection.Project(b.NE, s.Zoom)
-	sw := projection.Project(b.SW, s.Zoom)
-	if wpx := ne.X - sw.X; wpx > 360 {
-		t.Errorf("box width %g exceeds avail 360 at chosen zoom %d", wpx, s.Zoom)
+	ne := projection.ProjectF(b.NE, s.Zoom)
+	sw := projection.ProjectF(b.SW, s.Zoom)
+	if wpx := ne.X - sw.X; wpx > 360+1e-9 {
+		t.Errorf("box width %g exceeds avail 360 at chosen zoom %g", wpx, s.Zoom)
 	}
-	// Growing zoom by 1 must overflow — otherwise FitBounds left a
-	// larger fit on the table.
-	if s.Zoom < maxZoom {
-		ne2 := projection.Project(b.NE, s.Zoom+1)
-		sw2 := projection.Project(b.SW, s.Zoom+1)
-		if wpx := ne2.X - sw2.X; wpx <= 360 {
-			t.Errorf("zoom %d also fits (w=%g); FitBounds under-shot", s.Zoom+1, wpx)
-		}
+	// Analytical solver picks the tight fit exactly — the smaller of
+	// the width-limited and height-limited zooms. Width limit here:
+	// log2(360 / dx0). Verify the computed zoom equals that ratio to
+	// within float precision.
+	ne0 := projection.ProjectF(b.NE, 0)
+	sw0 := projection.ProjectF(b.SW, 0)
+	dx0 := ne0.X - sw0.X
+	dy0 := sw0.Y - ne0.Y
+	want := math.Log2(360 / dx0)
+	if zy := math.Log2(360 / dy0); zy < want {
+		want = zy
+	}
+	if math.Abs(s.Zoom-want) > 1e-9 {
+		t.Errorf("zoom %g, analytical want %g", s.Zoom, want)
 	}
 }
 
@@ -237,8 +243,8 @@ func TestOverlayVisible_AntimeridianStraddle(t *testing.T) {
 	m := &Marker{MarkerID: "dateline-east", Pos: projection.LatLng{Lat: 0, Lng: -179}}
 	// Build a viewport whose left edge sits near lng=+170 and whose
 	// right edge wraps past the dateline (world X > worldSize).
-	const z uint32 = 3
-	worldPx := projection.WorldSize(z)
+	const z = 3.0
+	worldPx := projection.WorldSizeF(z)
 	leftLng := 170.0
 	leftX := (leftLng + 180) / 360 * worldPx
 	vpW := 400.0
@@ -259,8 +265,8 @@ func TestOverlayVisible_AntimeridianStraddle(t *testing.T) {
 // antimeridian shift does not turn culling into a no-op.
 func TestOverlayVisible_OutOfView(t *testing.T) {
 	m := &Marker{MarkerID: "faraway", Pos: projection.LatLng{Lat: 0, Lng: 0}}
-	const z uint32 = 5
-	worldPx := projection.WorldSize(z)
+	const z = 5.0
+	worldPx := projection.WorldSizeF(z)
 	// Viewport well to the east of the prime meridian, non-wrapping,
 	// with a y range that intersects the marker's projected y so the
 	// cull decision is forced to come from the X axis only.
@@ -379,6 +385,137 @@ func TestSanitizeStroke(t *testing.T) {
 			t.Errorf("sanitizeStroke(%v) = %v, want %v", c.in, got, c.want)
 		}
 	}
+}
+
+// Integer-exact fit: bounds whose width-limited log2 hits an integer
+// must land on that integer zoom without fractional drift. Guards
+// against an accumulated-error regression in the analytical solver.
+func TestFitBounds_IntegerExactFit(t *testing.T) {
+	w := &gui.Window{}
+	readState(w, "m", MapState{})
+	// dx0 at z=0 for a 180° wide box is half the world (128 px); a
+	// 256-px canvas (and zero padding) yields log2(256/128)=1 exactly.
+	b := projection.Bounds{
+		NE: projection.LatLng{Lat: 0.001, Lng: 90},
+		SW: projection.LatLng{Lat: 0, Lng: -90},
+	}
+	FitBounds(w, "m", b, 0, 256, 256)
+	got, _ := Snapshot(w, "m")
+	if got.Zoom != 1 {
+		t.Errorf("zoom = %g, want exactly 1", got.Zoom)
+	}
+}
+
+// Analytical FitBounds lands on a non-integer zoom when the bounds
+// don't fit cleanly at any integer level — the whole point of slice 5a.
+func TestFitBounds_Fractional(t *testing.T) {
+	w := &gui.Window{}
+	readState(w, "m", MapState{})
+	b := projection.Bounds{
+		NE: projection.LatLng{Lat: 3.7, Lng: 3.7},
+		SW: projection.LatLng{Lat: -3.7, Lng: -3.7},
+	}
+	FitBounds(w, "m", b, 0, 500, 500)
+	got, _ := Snapshot(w, "m")
+	if got.Zoom == math.Trunc(got.Zoom) {
+		t.Errorf("expected fractional zoom, got integer %g", got.Zoom)
+	}
+	// Bounds must fit in available area at the chosen zoom.
+	ne := projection.ProjectF(b.NE, got.Zoom)
+	sw := projection.ProjectF(b.SW, got.Zoom)
+	if wpx := ne.X - sw.X; wpx > 500+1e-6 {
+		t.Errorf("width %g exceeds avail 500 at z=%g", wpx, got.Zoom)
+	}
+	if hpx := sw.Y - ne.Y; hpx > 500+1e-6 {
+		t.Errorf("height %g exceeds avail 500 at z=%g", hpx, got.Zoom)
+	}
+}
+
+// Padding consuming the whole canvas produces availW/availH <= 0;
+// log2 of a non-positive ratio is NaN / -Inf, which clampZoom
+// collapses to 0. Plan §5a spec: Zoom=0 on that input, Center still
+// re-anchors on bounds.
+func TestFitBounds_PaddingConsumesCanvas(t *testing.T) {
+	w := &gui.Window{}
+	readState(w, "m", MapState{Zoom: 7})
+	b := projection.Bounds{
+		NE: projection.LatLng{Lat: 1, Lng: 1},
+		SW: projection.LatLng{Lat: 0, Lng: 0},
+	}
+	FitBounds(w, "m", b, 200, 100, 100)
+	got, _ := Snapshot(w, "m")
+	if got.Zoom != 0 {
+		t.Errorf("padding=canvas zoom = %g, want 0", got.Zoom)
+	}
+	if got.Center != b.Center().Clamp() {
+		t.Errorf("center = %+v, want %+v", got.Center, b.Center().Clamp())
+	}
+}
+
+// Analytical FitBounds must clamp at the zoom ceiling even when the
+// bounds are so small that log2 would return a value above maxZoomF.
+func TestFitBounds_ClampsAtMaxZoomF(t *testing.T) {
+	w := &gui.Window{}
+	readState(w, "m", MapState{})
+	// One-meter-scale bounds fit trivially at max zoom.
+	const eps = 1e-6
+	b := projection.Bounds{
+		NE: projection.LatLng{Lat: eps, Lng: eps},
+		SW: projection.LatLng{Lat: 0, Lng: 0},
+	}
+	FitBounds(w, "m", b, 0, 400, 400)
+	got, _ := Snapshot(w, "m")
+	if got.Zoom != maxZoomF {
+		t.Errorf("zoom = %g, want %g (clamp)", got.Zoom, maxZoomF)
+	}
+}
+
+// Degenerate bounds (one axis exactly zero) must let the other axis
+// drive the fit — exercises the `if dx > 0` / `if dy > 0` branch
+// guards in the analytical solver. A bounds whose dx=0 (vertical
+// line) should fit as tight as the height-axis permits, up to the
+// clamp ceiling.
+func TestFitBounds_DegenerateAxis_UsesOtherAxis(t *testing.T) {
+	// Vertical line: NE.Lng == SW.Lng → dx = 0 at z=0, so the solver
+	// falls through to the height-axis log2 only.
+	t.Run("vertical_line", func(t *testing.T) {
+		w := &gui.Window{}
+		readState(w, "m", MapState{})
+		b := projection.Bounds{
+			NE: projection.LatLng{Lat: 10, Lng: 5},
+			SW: projection.LatLng{Lat: -10, Lng: 5},
+		}
+		FitBounds(w, "m", b, 0, 500, 500)
+		got, _ := Snapshot(w, "m")
+		dy0 := projection.ProjectF(b.SW, 0).Y - projection.ProjectF(b.NE, 0).Y
+		want := math.Log2(500 / dy0)
+		if want > maxZoomF {
+			want = maxZoomF
+		}
+		if math.Abs(got.Zoom-want) > 1e-9 {
+			t.Errorf("zoom = %g, want %g (height-axis fit)", got.Zoom, want)
+		}
+	})
+	// Horizontal line: NE.Lat == SW.Lat → dy = 0 at z=0. Width-axis
+	// drives the fit.
+	t.Run("horizontal_line", func(t *testing.T) {
+		w := &gui.Window{}
+		readState(w, "m", MapState{})
+		b := projection.Bounds{
+			NE: projection.LatLng{Lat: 5, Lng: 10},
+			SW: projection.LatLng{Lat: 5, Lng: -10},
+		}
+		FitBounds(w, "m", b, 0, 500, 500)
+		got, _ := Snapshot(w, "m")
+		dx0 := projection.ProjectF(b.NE, 0).X - projection.ProjectF(b.SW, 0).X
+		want := math.Log2(500 / dx0)
+		if want > maxZoomF {
+			want = maxZoomF
+		}
+		if math.Abs(got.Zoom-want) > 1e-9 {
+			t.Errorf("zoom = %g, want %g (width-axis fit)", got.Zoom, want)
+		}
+	})
 }
 
 // FitBounds must no-op on inverted bounds rather than parking the
@@ -537,8 +674,8 @@ func TestViewport_MetersToPixels(t *testing.T) {
 // east side.
 func TestOverlayVisible_ExactlyAtAntimeridian(t *testing.T) {
 	m := &Marker{MarkerID: "dateline", Pos: projection.LatLng{Lat: 0, Lng: 180}}
-	const z uint32 = 4
-	worldPx := projection.WorldSize(z)
+	const z = 4.0
+	worldPx := projection.WorldSizeF(z)
 	// Viewport centered on the antimeridian.
 	leftX := worldPx - 100
 	minX, maxX := leftX, leftX+200

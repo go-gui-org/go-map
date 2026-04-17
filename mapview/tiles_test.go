@@ -1,10 +1,13 @@
 package mapview
 
 import (
+	"context"
 	"math"
 	"testing"
 
+	"github.com/mike-ward/go-gui/gui"
 	"github.com/mike-ward/go-map/projection"
+	"github.com/mike-ward/go-map/tile"
 )
 
 // Seattle: a convenient non-trivial point that lands cleanly inside a
@@ -20,7 +23,10 @@ func TestComputeViewport_ZoomZero(t *testing.T) {
 		Zoom:   0,
 	})
 	if vp.Z != 0 {
-		t.Fatalf("Zoom = %d, want 0", vp.Z)
+		t.Fatalf("Zoom = %g, want 0", vp.Z)
+	}
+	if vp.TileZ != 0 {
+		t.Fatalf("TileZ = %d, want 0", vp.TileZ)
 	}
 	if math.Abs(float64(vp.OriginX-28)) > 1e-3 ||
 		math.Abs(float64(vp.OriginY-28)) > 1e-3 {
@@ -124,6 +130,92 @@ func TestWrapTileX(t *testing.T) {
 	}
 }
 
+// Fractional zoom: TileZ = floor(Z), TileScale in [1, 2). At integer Z
+// the scale collapses to 1 so existing tile math stays unchanged.
+func TestComputeViewport_FractionalZoom(t *testing.T) {
+	vp := computeViewport(400, 400, MapState{Center: seattle, Zoom: 11.4})
+	if vp.TileZ != 11 {
+		t.Errorf("TileZ = %d, want 11", vp.TileZ)
+	}
+	wantScale := math.Exp2(0.4)
+	if math.Abs(vp.TileScale-wantScale) > 1e-12 {
+		t.Errorf("TileScale = %g, want %g", vp.TileScale, wantScale)
+	}
+	// Screen spacing between tile TileZ rows at (tx=MinTX, ty=MinTY)
+	// and (tx+1, ty) must equal TileSize * TileScale.
+	x0, _ := vp.tileScreenPos(vp.MinTX, vp.MinTY)
+	x1, _ := vp.tileScreenPos(vp.MinTX+1, vp.MinTY)
+	wantSpacing := float32(projection.TileSize) * float32(wantScale)
+	if math.Abs(float64(x1-x0-wantSpacing)) > 1e-3 {
+		t.Errorf("tile spacing %g, want %g", x1-x0, wantSpacing)
+	}
+}
+
+func TestComputeViewport_IntegerZoomHasUnitTileScale(t *testing.T) {
+	for _, z := range []float64{0, 5, 11, 22} {
+		vp := computeViewport(400, 400, MapState{Zoom: z})
+		if vp.TileScale != 1 {
+			t.Errorf("z=%g: TileScale = %g, want 1", z, vp.TileScale)
+		}
+	}
+}
+
+// At exact maxZoomF, TileZ must cap at maxZoom and TileScale land on
+// 1 — sub-integer zooms below the ceiling still floor cleanly, and
+// the max case is numerically exact (Exp2(0) = 1).
+func TestComputeViewport_AtMaxZoom_TileZCaps(t *testing.T) {
+	vp := computeViewport(400, 400, MapState{Zoom: maxZoomF})
+	if vp.TileZ != maxZoom {
+		t.Errorf("TileZ = %d, want %d", vp.TileZ, maxZoom)
+	}
+	if vp.TileScale != 1 {
+		t.Errorf("TileScale = %g, want 1", vp.TileScale)
+	}
+	// Just below max: TileZ floors, TileScale approaches 2.
+	vp2 := computeViewport(400, 400, MapState{Zoom: maxZoomF - 0.0001})
+	if vp2.TileZ != maxZoom-1 {
+		t.Errorf("near-max TileZ = %d, want %d", vp2.TileZ, maxZoom-1)
+	}
+}
+
+// drawTiles at fractional zoom must emit tile images sized to
+// ceil(TileSize * TileScale). The ceil() is what suppresses subpixel
+// seams between neighbours; a refactor that dropped it would pass
+// every other test silently.
+func TestDrawTiles_FractionalZoomTileSize(t *testing.T) {
+	dc := gui.NewDrawContext(400, 400, nil)
+	vp := computeViewport(400, 400, MapState{
+		Center: projection.LatLng{Lat: 0, Lng: 0},
+		Zoom:   11.4,
+	})
+	drawTiles(dc, vp, stubSource{})
+	imgs := dc.Images()
+	if len(imgs) == 0 {
+		t.Fatal("no tile images emitted")
+	}
+	wantSize := float32(math.Ceil(float64(projection.TileSize) * vp.TileScale))
+	for _, im := range imgs {
+		if im.W != wantSize || im.H != wantSize {
+			t.Errorf("tile %q size = %gx%g, want %gx%g",
+				im.Src, im.W, im.H, wantSize, wantSize)
+		}
+	}
+}
+
+// stubSource is a minimal tile.Source that returns a placeholder URL
+// so drawTiles takes the Image path (not the text-labelled placeholder
+// path that needs a real TextMeasurer).
+type stubSource struct{}
+
+func (stubSource) URL(c tile.Coord) string {
+	return "stub://" + c.String()
+}
+func (stubSource) Fetch(_ context.Context, _ tile.Coord) ([]byte, error) {
+	return nil, nil
+}
+func (stubSource) Attribution() string { return "" }
+func (stubSource) MaxZoom() uint32     { return 22 }
+
 func TestViewport_AntimeridianRange(t *testing.T) {
 	// Center near +180°; viewport overlaps the seam. MinTX should go
 	// negative (or >= maxN), forcing wrapTileX to produce tiles from
@@ -132,7 +224,7 @@ func TestViewport_AntimeridianRange(t *testing.T) {
 		Center: projection.LatLng{Lat: 0, Lng: 179.9},
 		Zoom:   2,
 	})
-	maxN := int32(1) << vp.Z // 4
+	maxN := int32(1) << vp.TileZ // 4
 	seenWraps := false
 	for tx := vp.MinTX; tx <= vp.MaxTX; tx++ {
 		if tx < 0 || tx >= maxN {

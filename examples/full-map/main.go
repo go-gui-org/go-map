@@ -20,7 +20,7 @@ var src = tile.OSMWithUserAgent(
 type city struct {
 	Name   string
 	Center projection.LatLng
-	Zoom   uint32
+	Zoom   float64
 }
 
 var cities = []city{

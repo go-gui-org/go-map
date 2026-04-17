@@ -158,9 +158,9 @@ func panDragMove(id string) func(*gui.Layout, *gui.Event, *gui.Window) {
 		}
 		// Convert screen-pixel delta to world-pixel delta at the
 		// drag-start zoom. Inverting the sign gives "content follows
-		// cursor" feel.
-		startPt := projection.Project(p.StartCtr, p.StartZoom)
-		newCtr := projection.Unproject(projection.Point{
+		// cursor" feel. Fractional zoom flows through the F-variants.
+		startPt := projection.ProjectF(p.StartCtr, p.StartZoom)
+		newCtr := projection.UnprojectF(projection.Point{
 			X: startPt.X + float64(dx),
 			Y: startPt.Y + float64(dy),
 		}, p.StartZoom)
@@ -283,25 +283,28 @@ func onMouseScroll(id string, src tile.Source) func(*gui.Layout, *gui.Event, *gu
 		}
 
 		s := nsRead[MapState](w, nsState, id)
-		newZoom := int32(s.Zoom) + delta
-		if newZoom < 0 {
-			newZoom = 0
+		// Wheel and trackpad still produce integer zoom deltas per
+		// slice 5a scope — fractional state is reached only via
+		// SetZoom / SetView / FitBounds. Adding an integer delta to a
+		// possibly-fractional s.Zoom preserves the fractional part
+		// (e.g. 11.3 + 1 = 12.3); slice 5b will revisit wheel
+		// smoothness.
+		newZoom := clampZoom(s.Zoom + float64(delta))
+		if srcMax := float64(sourceMaxZoom(src)); newZoom > srcMax {
+			newZoom = srcMax
 		}
-		if maxFromSrc := int32(sourceMaxZoom(src)); newZoom > maxFromSrc {
-			newZoom = maxFromSrc
-		}
-		if uint32(newZoom) == s.Zoom {
+		if newZoom == s.Zoom {
 			e.IsHandled = true
 			return
 		}
 		newCtr := zoomToward(
-			s, uint32(newZoom),
+			s, newZoom,
 			e.MouseX, e.MouseY,
 			l.Shape.Width, l.Shape.Height,
 		)
 
 		s.Center = newCtr
-		s.Zoom = uint32(newZoom)
+		s.Zoom = newZoom
 		nsWrite(w, nsState, id, s)
 		e.IsHandled = true
 	}
@@ -343,23 +346,24 @@ func scrollSteps(acc float32) (delta int32, residual float32) {
 // cursor at (cx, cy) stays fixed across the zoom transition. widgetW
 // and widgetH are the canvas dimensions at the time of the event.
 // Pure function — no Window or state-registry access — so the
-// invariant is unit-testable.
+// invariant is unit-testable. Fractional zoom routes through the
+// F-variants; callers guarantee newZoom is clamp-safe.
 func zoomToward(
-	s MapState, newZoom uint32,
+	s MapState, newZoom float64,
 	cx, cy, widgetW, widgetH float32,
 ) projection.LatLng {
-	oldCtrPx := projection.Project(s.Center, s.Zoom)
+	oldCtrPx := projection.ProjectF(s.Center, s.Zoom)
 	cursorPxOld := projection.Point{
 		X: oldCtrPx.X + float64(cx-widgetW/2),
 		Y: oldCtrPx.Y + float64(cy-widgetH/2),
 	}
-	cursorLL := projection.Unproject(cursorPxOld, s.Zoom)
-	cursorPxNew := projection.Project(cursorLL, newZoom)
+	cursorLL := projection.UnprojectF(cursorPxOld, s.Zoom)
+	cursorPxNew := projection.ProjectF(cursorLL, newZoom)
 	newCtrPx := projection.Point{
 		X: cursorPxNew.X - float64(cx-widgetW/2),
 		Y: cursorPxNew.Y - float64(cy-widgetH/2),
 	}
-	return projection.Unproject(newCtrPx, newZoom).Clamp()
+	return projection.UnprojectF(newCtrPx, newZoom).Clamp()
 }
 
 func onMouseMove(id string) func(*gui.Layout, *gui.Event, *gui.Window) {
@@ -424,12 +428,15 @@ func onKeyDown(c Cfg, seed MapState) func(*gui.Layout, *gui.Event, *gui.Window) 
 		case gui.KeyDown:
 			s.Center = shiftCenter(s, 0, step)
 		case gui.KeyEqual, gui.KeyKPAdd:
-			if nz := s.Zoom + 1; nz <= sourceMaxZoom(src) {
+			// Integer delta — slice 5a keeps keyboard and wheel on
+			// whole-number steps. clampZoom enforces the ceiling;
+			// sourceMaxZoom adds a tighter per-source cap when set.
+			if nz := clampZoom(s.Zoom + 1); nz <= float64(sourceMaxZoom(src)) {
 				s.Zoom = nz
 			}
 		case gui.KeyMinus, gui.KeyKPSubtract:
 			if s.Zoom > 0 {
-				s.Zoom--
+				s.Zoom = clampZoom(s.Zoom - 1)
 			}
 		case gui.KeyHome:
 			s = seed
@@ -585,10 +592,10 @@ func cycleInfoFocus(current int8, actionCount, step int) int8 {
 }
 
 // shiftCenter translates s.Center by (dx, dy) screen-pixels at the
-// current zoom.
+// current fractional zoom.
 func shiftCenter(s MapState, dx, dy float64) projection.LatLng {
-	p := projection.Project(s.Center, s.Zoom)
+	p := projection.ProjectF(s.Center, s.Zoom)
 	p.X += dx
 	p.Y += dy
-	return projection.Unproject(p, s.Zoom).Clamp()
+	return projection.UnprojectF(p, s.Zoom).Clamp()
 }

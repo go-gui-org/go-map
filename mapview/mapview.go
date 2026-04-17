@@ -37,7 +37,7 @@ type Cfg struct {
 
 	// Initial viewport (seeds first-frame state only; ignored after)
 	InitialCenter projection.LatLng
-	InitialZoom   uint32
+	InitialZoom   float64
 
 	// InitialOverlays seed the overlay registry on the first frame
 	// only; subsequent frames read from the registry. Authors wanting
@@ -60,7 +60,7 @@ type Cfg struct {
 	// frame seeds the comparison baseline and does not fire either
 	// callback.
 	OnMove       func(*gui.Window, MapState)
-	OnZoomChange func(*gui.Window, uint32)
+	OnZoomChange func(*gui.Window, float64)
 	// OnClick fires on a mouse-down / mouse-up pair that did not drag
 	// past dragThresholdPx. The LatLng is the projected position of
 	// the up-point. If the click hits an overlay, OnPOISelect runs
@@ -121,11 +121,9 @@ func Map(cfg Cfg) gui.View {
 	if !cfg.Background.IsSet() {
 		cfg.Background = gui.Hex(0xE8E6E0)
 	}
+	cfg.InitialZoom = clampZoom(cfg.InitialZoom)
 	if cfg.InitialZoom == 0 {
 		cfg.InitialZoom = 2
-	}
-	if cfg.InitialZoom > maxZoom {
-		cfg.InitialZoom = maxZoom
 	}
 	cfg.InitialCenter = cfg.InitialCenter.Clamp()
 	for _, o := range cfg.InitialOverlays {
@@ -242,7 +240,7 @@ func seedOverlaysOnce(w *gui.Window, c Cfg) {
 // keeps the final match to agree with that ordering. See
 // overlayVisible for the antimeridian-straddle handling.
 func drawOverlays(dc *gui.DrawContext, vp viewport, overlays *gui.BoundedMap[string, Overlay]) {
-	worldPx := projection.WorldSize(vp.Z)
+	worldPx := projection.WorldSizeF(vp.Z)
 	minX := float64(vp.OriginX)
 	maxX := float64(vp.OriginX + vp.W)
 	minY := float64(vp.OriginY)
@@ -257,11 +255,11 @@ func drawOverlays(dc *gui.DrawContext, vp viewport, overlays *gui.BoundedMap[str
 
 // overlayVisible is the culling predicate for drawOverlays. Pure
 // function — no DrawContext, no state registry — so the antimeridian
-// logic can be unit-tested directly.
-func overlayVisible(o Overlay, z uint32, worldPx, minX, maxX, minY, maxY float64) bool {
+// logic can be unit-tested directly. Accepts fractional zoom.
+func overlayVisible(o Overlay, z float64, worldPx, minX, maxX, minY, maxY float64) bool {
 	b := o.Bounds()
-	ne := projection.Project(b.NE, z)
-	sw := projection.Project(b.SW, z)
+	ne := projection.ProjectF(b.NE, z)
+	sw := projection.ProjectF(b.SW, z)
 	oMinX, oMaxX := sw.X, ne.X
 	oMinY, oMaxY := ne.Y, sw.Y
 	if oMaxY < minY || oMinY > maxY {

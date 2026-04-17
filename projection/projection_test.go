@@ -26,6 +26,68 @@ func TestProjectUnprojectRoundTrip(t *testing.T) {
 	}
 }
 
+// ProjectF / UnprojectF must round-trip at fractional zoom levels and
+// agree with Project / Unproject at integer levels (bit-for-bit via
+// the integer's own delegation to the float path).
+func TestProjectF_FractionalRoundTrip(t *testing.T) {
+	cases := []LatLng{
+		{Lat: 47.6062, Lng: -122.3321},
+		{Lat: 0, Lng: 0},
+		{Lat: -60.5, Lng: 45.5},
+	}
+	for _, z := range []float64{0, 0.5, 3.25, 12.4, 18.9, 22.0} {
+		for _, p := range cases {
+			got := UnprojectF(ProjectF(p, z), z)
+			if !approxEq(got.Lat, p.Lat) || !approxEq(got.Lng, p.Lng) {
+				t.Errorf("z=%g in=%+v got=%+v", z, p, got)
+			}
+		}
+	}
+}
+
+// WorldSizeF must match WorldSize at every integer zoom in the
+// renderable range so the two code paths never diverge on tile-grid
+// math.
+func TestWorldSizeF_MatchesIntegerAtIntegers(t *testing.T) {
+	for z := uint32(0); z <= 22; z++ {
+		a := WorldSize(z)
+		b := WorldSizeF(float64(z))
+		if a != b {
+			t.Errorf("z=%d: WorldSize=%g WorldSizeF=%g", z, a, b)
+		}
+	}
+}
+
+// WorldSizeF on non-finite / negative inputs must land on the z=0
+// world size — propagating NaN would poison every downstream ProjectF
+// call in the frame.
+func TestWorldSizeF_NonFiniteCollapse(t *testing.T) {
+	for _, z := range []float64{math.NaN(), math.Inf(1), math.Inf(-1), -5} {
+		if got := WorldSizeF(z); got != float64(TileSize) {
+			t.Errorf("WorldSizeF(%v) = %g, want %g", z, got, float64(TileSize))
+		}
+	}
+}
+
+// UnprojectF must never return NaN/±Inf coordinates. A Point that
+// carries a non-finite axis (bad event, corrupted intermediate) is
+// treated as a request for the zero LatLng rather than silently
+// poisoning the caller's subsequent projection math.
+func TestUnprojectF_NonFinitePointCollapsesToZero(t *testing.T) {
+	bad := []Point{
+		{X: math.NaN(), Y: 100},
+		{X: 100, Y: math.NaN()},
+		{X: math.Inf(1), Y: 100},
+		{X: 100, Y: math.Inf(-1)},
+	}
+	for _, pt := range bad {
+		got := UnprojectF(pt, 10)
+		if got != (LatLng{}) {
+			t.Errorf("UnprojectF(%+v) = %+v, want zero", pt, got)
+		}
+	}
+}
+
 func TestProjectOriginTopLeft(t *testing.T) {
 	pt := Project(LatLng{Lat: 85.05112878, Lng: -180}, 0)
 	if !approxEq(pt.X, 0) || pt.Y > 1 || pt.Y < -1 {
