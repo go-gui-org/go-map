@@ -19,6 +19,7 @@ const (
 	nsOverlays  = "mapview.overlays"
 	nsSeeded    = "mapview.seeded"
 	nsInfoRect  = "mapview.inforect"
+	nsVersion   = "mapview.version"
 	capMaps     = 16
 )
 
@@ -79,6 +80,35 @@ func nsRead[V any](w *gui.Window, ns, id string) V {
 
 func nsWrite[V any](w *gui.Window, ns, id string, v V) {
 	gui.StateMap[string, V](w, ns, capMaps).Set(id, v)
+	if invalidatesRender(ns) {
+		bumpVersion(w, id)
+	}
+}
+
+// invalidatesRender reports whether a write to ns must bump the
+// DrawCanvas version. nsInfoRect writes come from inside OnDraw —
+// bumping there would loop.
+func invalidatesRender(ns string) bool {
+	return ns == nsState || ns == nsHover
+}
+
+// bumpVersion increments the per-map DrawCanvas cache key. The zero
+// value is a valid first-frame version — no cache exists yet so the
+// initial OnDraw runs regardless. Every MapState / hover / overlay
+// mutation must funnel through here so the cached tessellation stays
+// coherent with captured closure state. Wraparound at 2^64 is a
+// non-event — the cache stores the last seen value, so any change
+// misses the cache.
+func bumpVersion(w *gui.Window, id string) {
+	sm := gui.StateMap[string, uint64](w, nsVersion, capMaps)
+	v, _ := sm.Get(id)
+	sm.Set(id, v+1)
+}
+
+// readVersion returns the current DrawCanvas cache key for id. Zero
+// when id has no prior state.
+func readVersion(w *gui.Window, id string) uint64 {
+	return nsRead[uint64](w, nsVersion, id)
 }
 
 // readState returns the current MapState for id, seeding it from seed
@@ -105,26 +135,18 @@ func Snapshot(w *gui.Window, id string) (s MapState, ok bool) {
 // PanTo recenters the map on the given LatLng. Zoom is unchanged.
 // No-op if the map ID has not yet rendered.
 func PanTo(w *gui.Window, id string, c projection.LatLng) {
-	sm := gui.StateMap[string, MapState](w, nsState, capMaps)
-	s, ok := sm.Get(id)
-	if !ok {
-		return
+	if s, ok := Snapshot(w, id); ok {
+		SetView(w, id, c, s.Zoom)
 	}
-	s.Center = c.Clamp()
-	sm.Set(id, s)
 }
 
 // SetZoom updates the zoom level, clamped to [0, maxZoomF]. NaN/±Inf
 // collapse to 0. Center unchanged. No-op if the map ID has not yet
 // rendered.
 func SetZoom(w *gui.Window, id string, zoom float64) {
-	sm := gui.StateMap[string, MapState](w, nsState, capMaps)
-	s, ok := sm.Get(id)
-	if !ok {
-		return
+	if s, ok := Snapshot(w, id); ok {
+		SetView(w, id, s.Center, zoom)
 	}
-	s.Zoom = clampZoom(zoom)
-	sm.Set(id, s)
 }
 
 // SetView replaces both center and zoom atomically. Zoom is clamped
@@ -138,6 +160,7 @@ func SetView(w *gui.Window, id string, c projection.LatLng, zoom float64) {
 	s.Center = c.Clamp()
 	s.Zoom = clampZoom(zoom)
 	sm.Set(id, s)
+	bumpVersion(w, id)
 }
 
 // clampZoom coerces a zoom value into the renderable range. NaN and
@@ -185,18 +208,32 @@ func AddOverlay(w *gui.Window, id string, o Overlay) {
 		return
 	}
 	readOverlays(w, id).Set(o.ID(), o)
+	bumpVersion(w, id)
 }
 
 // RemoveOverlay deletes the overlay with the given overlay-ID. No-op
-// if absent.
+// if absent; the version bump is skipped on a no-op so a stale
+// RemoveOverlay in a hot callback path cannot force per-frame OnDraw
+// re-runs.
 func RemoveOverlay(w *gui.Window, id, overlayID string) {
-	readOverlays(w, id).Delete(overlayID)
+	bm := readOverlays(w, id)
+	if !bm.Contains(overlayID) {
+		return
+	}
+	bm.Delete(overlayID)
+	bumpVersion(w, id)
 }
 
 // ClearOverlays removes every overlay registered against id. Intended
-// for layer switchers that repopulate markers on change.
+// for layer switchers that repopulate markers on change. No-op (and
+// no version bump) when already empty.
 func ClearOverlays(w *gui.Window, id string) {
-	readOverlays(w, id).Clear()
+	bm := readOverlays(w, id)
+	if bm.Len() == 0 {
+		return
+	}
+	bm.Clear()
+	bumpVersion(w, id)
 }
 
 // FitBounds centers the map on b and picks the fractional zoom at
@@ -257,6 +294,7 @@ func FitBounds(w *gui.Window, id string, b projection.Bounds, padding float32, c
 	s.Center = b.Center().Clamp()
 	s.Zoom = clampZoom(math.Min(zx, zy))
 	sm.Set(id, s)
+	bumpVersion(w, id)
 }
 
 // maxZoom is the global zoom ceiling for tile paths (tile.Coord.Z

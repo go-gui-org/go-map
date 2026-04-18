@@ -149,8 +149,9 @@ func Map(cfg Cfg) gui.View {
 // mapView is the custom View implementation. It re-reads persistent
 // state from the Window registry each frame (GenerateLayout runs
 // once per frame) and captures the snapshot into the DrawCanvas
-// OnDraw closure. Version bumps per frame to defeat the DrawCanvas
-// cache while pan/zoom are state-driven rather than version-driven.
+// OnDraw closure. Version is driven by nsVersion (bumped on every
+// MapState / hover / overlay mutation) so OnDraw re-executes only on
+// state change — stable frames replay the cached tessellation.
 type mapView struct {
 	cfg Cfg
 }
@@ -170,6 +171,15 @@ func (mv *mapView) GenerateLayout(w *gui.Window) gui.Layout {
 	// state. Skip the first frame so consumers do not see a synthetic
 	// "change" matching the seed they already supplied.
 	fireCallbacks(w, c, s)
+
+	// Re-read after fireCallbacks. An OnMove / OnZoomChange callback
+	// may call PanTo / SetZoom mid-frame, which bumps the DrawCanvas
+	// version. If the closure keeps the pre-callback s, OnDraw would
+	// render the stale state but stash it under the new version key —
+	// the next frame's cache hit then replays stale geometry. Capturing
+	// the post-callback state keeps tessellation coherent with the
+	// version DrawCanvasCfg reports below.
+	s = readState(w, c.ID, seed)
 
 	// Capture state by value into the OnDraw closure. Reads happen
 	// here (on the UI goroutine) so the draw pass never touches the
@@ -208,7 +218,7 @@ func (mv *mapView) GenerateLayout(w *gui.Window) gui.Layout {
 		ID:              c.ID,
 		A11YLabel:       c.A11YLabel,
 		A11YDescription: a11y,
-		Version:         w.FrameCount(),
+		Version:         readVersion(w, c.ID),
 		Sizing:          c.Sizing,
 		Width:           c.Width,
 		Height:          c.Height,
