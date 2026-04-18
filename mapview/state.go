@@ -2,6 +2,7 @@ package mapview
 
 import (
 	"math"
+	"time"
 
 	"github.com/mike-ward/go-gui/gui"
 	"github.com/mike-ward/go-map/projection"
@@ -70,6 +71,12 @@ type MapState struct {
 // namespace so MapState stays a clean snapshot. Moved flips true once
 // the cursor has travelled past dragThresholdPx from the press point;
 // panDragEnd uses it to distinguish a pan from a click.
+//
+// Velocity fields (Last*, Vel*) sample a low-pass-filtered world-pixel
+// velocity during drag so panDragEnd can launch a kinetic-pan fling
+// that matches the cursor's exit momentum. LastT is time.Time directly
+// (no unix-ns conversion) because panState lives in the state registry
+// as a value and a time.Time field does not heap-escape across nsWrite.
 type panState struct {
 	Active    bool
 	Moved     bool
@@ -81,6 +88,14 @@ type panState struct {
 	StartZoom float64
 	CanvasW   float32
 	CanvasH   float32
+	// Last* is the most recent mouse sample during the drag; seeded
+	// on mouse-down, refreshed on every move that crosses the drag
+	// threshold. Vel* is an EMA of world-pixel velocity in the
+	// direction the map center is moving (screen-right drag → center
+	// travels left → negative VelX).
+	LastX, LastY float32
+	LastT        time.Time
+	VelX, VelY   float64
 }
 
 // lastFired records the MapState last passed to OnMove / OnZoomChange
@@ -172,13 +187,17 @@ func SetZoom(w *gui.Window, id string, zoom float64) {
 }
 
 // SetView replaces both center and zoom atomically. Zoom is clamped
-// via clampZoom so a stray NaN / ±Inf cannot reach MapState.
+// via clampZoom so a stray NaN / ±Inf cannot reach MapState. Any in-
+// flight kinetic fling is cancelled — a programmatic SetView is an
+// explicit request to land at that center, not a suggestion to
+// glide towards it.
 func SetView(w *gui.Window, id string, c projection.LatLng, zoom float64) {
 	sm := gui.StateMap[string, MapState](w, nsState, capMaps)
 	s, ok := sm.Get(id)
 	if !ok {
 		return
 	}
+	cancelKineticPan(w, id)
 	s.Center = c.Clamp()
 	s.Zoom = clampZoom(zoom)
 	sm.Set(id, s)
@@ -319,6 +338,7 @@ func FitBounds(w *gui.Window, id string, b projection.Bounds, padding float32, c
 	if dy > 0 {
 		zy = math.Log2(float64(availH) / dy)
 	}
+	cancelKineticPan(w, id)
 	s.Center = b.Center().Clamp()
 	s.Zoom = clampZoom(math.Min(zx, zy))
 	sm.Set(id, s)

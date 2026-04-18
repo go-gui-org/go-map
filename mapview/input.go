@@ -2,6 +2,7 @@ package mapview
 
 import (
 	"math"
+	"time"
 
 	"github.com/mike-ward/go-gui/gui"
 	"github.com/mike-ward/go-map/projection"
@@ -30,11 +31,16 @@ func onMouseDown(c Cfg, seed MapState) func(*gui.Layout, *gui.Event, *gui.Window
 			e.IsHandled = true
 			return
 		}
+		// A new press cancels any in-flight kinetic fling — user is
+		// taking over. Must precede the nsPan write so a zero-
+		// velocity drag does not inherit residual fling state.
+		cancelKineticPan(w, id)
 		s := nsRead[MapState](w, nsState, id)
 		// OnClick delivers widget-local coords; MouseLock callbacks
 		// deliver absolute coords. Storing both, plus canvas size,
 		// lets panDragEnd resolve the release LatLng without a second
 		// event dispatch.
+		now := time.Now()
 		nsWrite(w, nsPan, id, panState{
 			Active:    true,
 			StartX:    e.MouseX + l.Shape.X,
@@ -45,6 +51,9 @@ func onMouseDown(c Cfg, seed MapState) func(*gui.Layout, *gui.Event, *gui.Window
 			StartZoom: s.Zoom,
 			CanvasW:   l.Shape.Width,
 			CanvasH:   l.Shape.Height,
+			LastX:     e.MouseX,
+			LastY:     e.MouseY,
+			LastT:     now,
 		})
 		w.MouseLock(gui.MouseLockCfg{
 			MouseMove: panDragMove(id),
@@ -155,6 +164,13 @@ func panDragMove(id string) func(*gui.Layout, *gui.Event, *gui.Window) {
 			p.Moved = true
 			nsWrite(w, nsPan, id, p)
 		}
+		// Sample kinetic-pan velocity before the nsWrite that moves
+		// center — the EMA math needs the prior LastX/Y, and the
+		// subsequent nsPan write persists both the new sample and
+		// the updated EMA.
+		sampleKineticVelocity(&p, e.MouseX, e.MouseY, time.Now())
+		nsWrite(w, nsPan, id, p)
+
 		// Convert screen-pixel delta to world-pixel delta at the
 		// drag-start zoom. Inverting the sign gives "content follows
 		// cursor" feel. Fractional zoom flows through the F-variants.
@@ -183,6 +199,12 @@ func panDragEnd(c Cfg) func(*gui.Layout, *gui.Event, *gui.Window) {
 	return func(_ *gui.Layout, e *gui.Event, w *gui.Window) {
 		p := nsRead[panState](w, nsPan, id)
 		wasClick := p.Active && !p.Moved
+		// Try launching a kinetic fling before the pan state clears
+		// — spawnKineticPan reads p.VelX/VelY/LastT, so the pre-
+		// reset snapshot is what it needs to decide.
+		if !wasClick {
+			spawnKineticPan(w, id, p, time.Now())
+		}
 		p.Active = false
 		p.Moved = false
 		nsWrite(w, nsPan, id, p)
@@ -293,6 +315,9 @@ func onMouseScroll(id string, gain float32) func(*gui.Layout, *gui.Event, *gui.W
 			e.IsHandled = true
 			return
 		}
+		// Wheel zoom cancels any in-flight fling — user is
+		// actively changing the view, momentum is no longer wanted.
+		cancelKineticPan(w, id)
 		newCtr := zoomToward(
 			s, newZoom,
 			e.MouseX, e.MouseY,
@@ -448,6 +473,9 @@ func onKeyDown(c Cfg, seed MapState) func(*gui.Layout, *gui.Event, *gui.Window) 
 			handled = false
 		}
 		if handled {
+			// Keyboard pan / zoom / home all preempt any in-flight
+			// fling — explicit user input trumps momentum.
+			cancelKineticPan(w, id)
 			nsWrite(w, nsState, id, s)
 			e.IsHandled = true
 		}
