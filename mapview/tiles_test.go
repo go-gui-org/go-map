@@ -142,11 +142,16 @@ func TestComputeViewport_FractionalZoom(t *testing.T) {
 		t.Errorf("TileScale = %g, want %g", vp.TileScale, wantScale)
 	}
 	// Screen spacing between tile TileZ rows at (tx=MinTX, ty=MinTY)
-	// and (tx+1, ty) must equal TileSize * TileScale.
+	// and (tx+1, ty) must equal TileSize * TileScale. Tolerance is
+	// loose (0.01 px) because tileScreenPos computes each x as
+	// float32(tx)*ts - OriginX; at Seattle / z=11 the products land
+	// near 1e5 and the subtraction cancels all but a few ULPs, so
+	// a tighter bound flakes under different float-rounding regimes
+	// across CI platforms.
 	x0, _ := vp.tileScreenPos(vp.MinTX, vp.MinTY)
 	x1, _ := vp.tileScreenPos(vp.MinTX+1, vp.MinTY)
 	wantSpacing := float32(projection.TileSize) * float32(wantScale)
-	if math.Abs(float64(x1-x0-wantSpacing)) > 1e-3 {
+	if math.Abs(float64(x1-x0-wantSpacing)) > 1e-2 {
 		t.Errorf("tile spacing %g, want %g", x1-x0, wantSpacing)
 	}
 }
