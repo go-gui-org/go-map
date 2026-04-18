@@ -205,9 +205,12 @@ func panDragEnd(c Cfg) func(*gui.Layout, *gui.Event, *gui.Window) {
 		if !wasClick {
 			spawnKineticPan(w, id, p, time.Now())
 		}
-		p.Active = false
-		p.Moved = false
-		nsWrite(w, nsPan, id, p)
+		// Clear the entire panState — the drag is done, so no field
+		// is meaningful and stale StartCtr / LastT entries would
+		// survive in the registry otherwise (cosmetic, but a later
+		// reader would have to reason about "is this from the
+		// current drag or the last one?").
+		nsWrite(w, nsPan, id, panState{})
 		w.MouseUnlock()
 		if !wasClick {
 			return

@@ -146,6 +146,22 @@ func drawHomeButton(dc *gui.DrawContext) {
 // bottom-left corner above the coord readout. Distances scale with
 // the cosine of the center latitude, matching standard slippy-map
 // scale-bar convention.
+// Scalebar layout constants. scaleBarMarginX is the left inset of
+// every chrome row in the bottom-left stack; scaleBarBaselineY is the
+// vertical offset from dc.Height to the metric bar's baseline (the
+// coord readout sits at dc.Height-20, so 30 clears it with a tick of
+// whitespace). scaleBarChipPadX / scaleBarChipHeight size the tinted
+// backing rectangle; scaleBarChipInsetY compensates the top edge so
+// the chip hugs the tick marks without cropping their upstrokes.
+const (
+	scaleBarMarginX    float32 = 8
+	scaleBarBaselineY  float32 = 30
+	scaleBarChipPadX   float32 = 12
+	scaleBarChipHeight float32 = 28
+	scaleBarChipInsetY float32 = 4
+	scaleBarTickH      float32 = 4
+)
+
 func drawScaleBar(dc *gui.DrawContext, s MapState) {
 	mpp := metersPerPixel(s.Center.Lat, s.Zoom)
 	if mpp <= 0 || math.IsNaN(mpp) || math.IsInf(mpp, 0) {
@@ -157,24 +173,24 @@ func drawScaleBar(dc *gui.DrawContext, s MapState) {
 		return
 	}
 
-	// Coord readout sits at dc.Height-20; stack scale bars above it.
-	const tickH float32 = 4
-	bx := float32(8)
-	by := dc.Height - 30 // baseline of metric bar
+	bx := scaleBarMarginX
+	by := dc.Height - scaleBarBaselineY // baseline of metric bar
 
 	// Backing chip sized to the longest (bar + label) so wide labels
 	// at low zoom (e.g. "10000 km") stay legible without spillover.
 	metricLW := dc.TextWidth(metricLabel, scaleStyle)
 	imperialLW := dc.TextWidth(imperialLabel, scaleStyle)
-	chipW := max(metricPx+metricLW, imperialPx+imperialLW) + 12
-	chipH := float32(28)
-	dc.FilledRect(bx-4, by-chipH+4, chipW, chipH, hudBG)
+	chipW := max(metricPx+metricLW, imperialPx+imperialLW) + scaleBarChipPadX
+	dc.FilledRect(
+		bx-scaleBarChipInsetY,
+		by-scaleBarChipHeight+scaleBarChipInsetY,
+		chipW, scaleBarChipHeight, hudBG)
 
 	if metricPx > 0 {
-		drawScaleSegment(dc, bx, by, metricPx, tickH, metricLabel)
+		drawScaleSegment(dc, bx, by, metricPx, scaleBarTickH, metricLabel)
 	}
 	if imperialPx > 0 {
-		drawScaleSegment(dc, bx, by+scaleBarRowSpacing, imperialPx, tickH, imperialLabel)
+		drawScaleSegment(dc, bx, by+scaleBarRowSpacing, imperialPx, scaleBarTickH, imperialLabel)
 	}
 }
 

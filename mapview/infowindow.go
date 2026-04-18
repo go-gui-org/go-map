@@ -194,6 +194,45 @@ func clearInfoRect(w *gui.Window, id string) {
 	nsWrite(w, nsInfoRect, id, infoRectState{})
 }
 
+// truncateToWidth returns s, possibly with its trailing runes
+// replaced by a single "…", so the measured width is at most maxW.
+// Pure-function core — takes the measure fn directly instead of a
+// *DrawContext so tests do not need a real TextMeasurer.
+//
+// Binary-searches over rune count so mid-rune truncation is
+// impossible (multi-byte UTF-8, emoji, combining marks stay whole).
+// Degenerate inputs:
+//   - maxW ≤ 0 → "" (no budget to draw anything).
+//   - s already fits → returned unchanged.
+//   - "…" alone doesn't fit → "" (budget too tight for even an
+//     ellipsis).
+func truncateToWidth(s string, maxW float32, measure func(string) float32) string {
+	if maxW <= 0 {
+		return ""
+	}
+	if measure(s) <= maxW {
+		return s
+	}
+	const ellipsis = "…"
+	if measure(ellipsis) > maxW {
+		return ""
+	}
+	runes := []rune(s)
+	lo, hi := 0, len(runes)
+	for lo < hi {
+		mid := (lo + hi + 1) / 2
+		if measure(string(runes[:mid])+ellipsis) <= maxW {
+			lo = mid
+		} else {
+			hi = mid - 1
+		}
+	}
+	if lo == 0 {
+		return ellipsis
+	}
+	return string(runes[:lo]) + ellipsis
+}
+
 // isFiniteF32 reports whether v is a real finite number (not NaN and
 // not ±Inf). Drawing paths use this before feeding coords to the
 // DrawContext so a single bad value cannot poison the triangle batch.
@@ -221,6 +260,17 @@ func drawInfoWindow(dc *gui.DrawContext, mx, my float32, m *Marker, focusIdx int
 		body = m.Label
 	}
 	body = truncateUTF8(body, maxInfoBodyBytes)
+
+	// Clamp the title to the pixel budget the title row actually has
+	// (popup cap minus close-button column). The byte cap upstream
+	// bounds memory; this second step bounds rendered width so a
+	// long label cannot overflow into the close box at the current
+	// font. No-op for tests without a text measurer — TextWidth
+	// returns 0 and truncateToWidth then treats the title as "fits".
+	titleBudget := infoMaxWidth - infoCloseGap - infoCloseSize
+	title = truncateToWidth(title, titleBudget, func(s string) float32 {
+		return dc.TextWidth(s, infoTitleStyle)
+	})
 
 	// Measure content widths. Title row must budget a close-button
 	// column so the X never overlaps glyphs.
@@ -355,7 +405,16 @@ func drawInfoWindow(dc *gui.DrawContext, mx, my float32, m *Marker, focusIdx int
 	var actions [MaxInfoActions]infoActionRect
 	if actionCount > 0 {
 		rowY := y + h - infoPadY - actionH
+		// Centre the action row when it fits. When actionRowW exceeds
+		// the popup's content width (the 4-wide edge case flagged in
+		// plan §4a), (w-actionRowW)/2 goes negative and the left-most
+		// chip would leak past the popup's left edge. Clamp to infoPadX
+		// so overflow spills right (still wrong visually, but stays
+		// inside the window frame and keeps hit-dispatch consistent).
 		rowX := x + (w-actionRowW)/2
+		if rowX < x+infoPadX {
+			rowX = x + infoPadX
+		}
 		cx := rowX
 		glyphH := actionH - infoActionPadY*2
 		for i := 0; i < actionCount; i++ {
