@@ -54,9 +54,9 @@ func view(w *gui.Window) gui.View {
 	detailW := float32(ww) - float32(sidebarW)
 	detailH := float32(wh)
 
-	// Each frame, mirror the detail viewport onto the overview: recenter
-	// the locator and rewrite the viewport-rectangle overlay. Idempotent
-	// registry writes when nothing changed; no callback wiring needed.
+	// Rewrite the viewport-rectangle overlay on the locator every frame
+	// to track detail pan / zoom. Idempotent registry writes when
+	// nothing changed; no callback wiring needed.
 	syncOverview(w, detailW, detailH)
 
 	return gui.Row(gui.ContainerCfg{
@@ -140,6 +140,16 @@ func syncOverview(w *gui.Window, detailW, detailH float32) {
 		projection.Point{X: c.X + hw, Y: c.Y - hh}, s.Zoom)
 	sw := projection.UnprojectF(
 		projection.Point{X: c.X - hw, Y: c.Y + hh}, s.Zoom)
+
+	// A single 4-corner ring cannot represent an antimeridian-wrapped
+	// or larger-than-world viewport honestly. Drop the rectangle this
+	// frame (and clear any stale one) rather than paint a nonsensical
+	// band across the locator.
+	lngSpan := ne.Lng - sw.Lng
+	if lngSpan <= 0 || lngSpan >= 360 {
+		mapview.RemoveOverlay(w, overviewID, viewportRectID)
+		return
+	}
 
 	// Ring winds clockwise starting NW so the polygon renders with a
 	// consistent orientation. Stroke only — semi-transparent fill so
