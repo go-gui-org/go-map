@@ -18,7 +18,7 @@ func testSource(t *testing.T, baseURL, ua string) *osmSource {
 	prefix := baseURL + "/"
 	return &osmSource{
 		client:    http.DefaultClient,
-		userAgent: sanitizeHeader(ua),
+		userAgent: SanitizeHeader(ua),
 		urlPrefix: prefix,
 	}
 }
@@ -115,30 +115,49 @@ func TestOSM_URL_Z32IsInvalid(t *testing.T) {
 	}
 }
 
-// sanitizeHeader must strip CR and LF so a malicious UA cannot append
+// SanitizeHeader must strip CR and LF so a malicious UA cannot append
 // extra HTTP headers via injection.
 func TestSanitizeHeader_StripsCRLF(t *testing.T) {
-	got := sanitizeHeader("foo\r\nX-Inject: bar")
+	got := SanitizeHeader("foo\r\nX-Inject: bar")
 	want := "fooX-Inject: bar"
 	if got != want {
-		t.Errorf("sanitizeHeader = %q, want %q", got, want)
+		t.Errorf("SanitizeHeader = %q, want %q", got, want)
 	}
 }
 
 func TestSanitizeHeader_TrimsWhitespace(t *testing.T) {
-	got := sanitizeHeader("  hello  ")
+	got := SanitizeHeader("  hello  ")
 	if got != "hello" {
-		t.Errorf("sanitizeHeader = %q, want \"hello\"", got)
+		t.Errorf("SanitizeHeader = %q, want \"hello\"", got)
 	}
 }
 
 // Length cap prevents an accidentally huge UA from landing on every
 // outbound request.
 func TestSanitizeHeader_CapsLength(t *testing.T) {
-	in := strings.Repeat("a", maxUserAgentLen+100)
-	got := sanitizeHeader(in)
-	if len(got) != maxUserAgentLen {
-		t.Errorf("len = %d, want %d", len(got), maxUserAgentLen)
+	in := strings.Repeat("a", MaxUserAgentLen+100)
+	got := SanitizeHeader(in)
+	if len(got) != MaxUserAgentLen {
+		t.Errorf("len = %d, want %d", len(got), MaxUserAgentLen)
+	}
+}
+
+func TestIsJPEG(t *testing.T) {
+	cases := []struct {
+		name string
+		in   []byte
+		want bool
+	}{
+		{"empty", nil, false},
+		{"too_short", []byte{0xFF, 0xD8}, false},
+		{"jfif", []byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00}, true},
+		{"exif", []byte{0xFF, 0xD8, 0xFF, 0xE1, 0x00}, true},
+		{"png", pngFixture, false},
+	}
+	for _, c := range cases {
+		if got := IsJPEG(c.in); got != c.want {
+			t.Errorf("%s: IsJPEG = %v, want %v", c.name, got, c.want)
+		}
 	}
 }
 
@@ -263,8 +282,8 @@ func TestIsPNG(t *testing.T) {
 		{"jpeg_magic", []byte{0xFF, 0xD8, 0xFF, 0xE0}, false},
 	}
 	for _, c := range cases {
-		if got := isPNG(c.in); got != c.want {
-			t.Errorf("%s: isPNG = %v, want %v", c.name, got, c.want)
+		if got := IsPNG(c.in); got != c.want {
+			t.Errorf("%s: IsPNG = %v, want %v", c.name, got, c.want)
 		}
 	}
 }

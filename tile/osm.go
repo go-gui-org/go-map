@@ -46,26 +46,27 @@ func OSM() Source {
 func OSMWithUserAgent(ua string) Source {
 	return &osmSource{
 		client:    &http.Client{Timeout: 15 * time.Second},
-		userAgent: sanitizeHeader(ua),
+		userAgent: SanitizeHeader(ua),
 		urlPrefix: osmURLPrefix,
 	}
 }
 
-// maxUserAgentLen caps the length of the User-Agent we will set on
-// outbound requests. RFC 7230 doesn't fix a header-value ceiling but
-// many origins (and Go's own http2 stack) reject very long values;
-// keep us defensive against accidental megabyte strings.
-const maxUserAgentLen = 512
+// MaxUserAgentLen caps the length of the User-Agent set on outbound
+// requests. RFC 7230 doesn't fix a header-value ceiling but many
+// origins (and Go's own http2 stack) reject very long values; cap
+// defends against accidental megabyte strings.
+const MaxUserAgentLen = 512
 
-// sanitizeHeader strips characters that would make net/http reject a
-// header value (\r, \n), trims surrounding whitespace, and caps the
-// length so a hostile or malformed caller cannot inject an arbitrary
-// blob into every outbound request.
-func sanitizeHeader(s string) string {
+// SanitizeHeader strips characters that would make net/http reject a
+// header value (\r, \n), trims surrounding whitespace, and caps length
+// at MaxUserAgentLen so a hostile or malformed caller cannot inject an
+// arbitrary blob into every outbound request. Exported for reuse by
+// third-party Source implementations (e.g. tile/wms).
+func SanitizeHeader(s string) string {
 	r := strings.NewReplacer("\r", "", "\n", "")
 	out := strings.TrimSpace(r.Replace(s))
-	if len(out) > maxUserAgentLen {
-		out = out[:maxUserAgentLen]
+	if len(out) > MaxUserAgentLen {
+		out = out[:MaxUserAgentLen]
 	}
 	return out
 }
@@ -113,7 +114,7 @@ func (s *osmSource) Fetch(ctx context.Context, c Coord) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		if !isPNG(body) {
+		if !IsPNG(body) {
 			return nil, fmt.Errorf(
 				"tile %s: %d-byte body is not a PNG", url, len(body))
 		}
@@ -164,7 +165,7 @@ func (s *osmSource) HTTPFetcher() func(ctx context.Context, url string) (*http.R
 		if err != nil {
 			return nil, fmt.Errorf("tile body: %w", err)
 		}
-		if !isPNG(body) {
+		if !IsPNG(body) {
 			return nil, fmt.Errorf(
 				"tile %s: %d-byte body is not a PNG", url, len(body))
 		}
@@ -177,11 +178,24 @@ func (s *osmSource) HTTPFetcher() func(ctx context.Context, url string) (*http.R
 // pngMagic is the eight-byte PNG file signature (RFC 2083 §3.1).
 var pngMagic = []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}
 
-// isPNG reports whether b begins with the PNG file signature. A
+// jpegMagic is the three-byte JPEG Start-Of-Image + APP0/APP1 marker
+// prefix (ISO/IEC 10918-1). FF D8 FF covers every JFIF / Exif variant
+// an HTTP WMS server returns.
+var jpegMagic = []byte{0xFF, 0xD8, 0xFF}
+
+// IsPNG reports whether b begins with the PNG file signature. A
 // zero-length or HTML-error body fails the check; a real PNG passes
-// even before the IDAT chunks are inspected.
-func isPNG(b []byte) bool {
+// even before the IDAT chunks are inspected. Exported for reuse by
+// third-party Source implementations.
+func IsPNG(b []byte) bool {
 	return len(b) >= len(pngMagic) && bytes.Equal(b[:len(pngMagic)], pngMagic)
+}
+
+// IsJPEG reports whether b begins with a JPEG SOI marker. Exported
+// alongside IsPNG for source implementations whose servers return
+// JPEG (common for WMS satellite/aerial layers).
+func IsJPEG(b []byte) bool {
+	return len(b) >= len(jpegMagic) && bytes.Equal(b[:len(jpegMagic)], jpegMagic)
 }
 
 // HTTPFetcher is implemented by Sources that speak HTTP and can
