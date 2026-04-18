@@ -34,25 +34,13 @@ func main() {
 }
 
 func view(w *gui.Window) gui.View {
-	// Root layouts need an explicit size; FillFill has no parent to
-	// inherit from. Wrap in a FixedFixed Column sized to the window
-	// and let the map fill inside.
-	ww, wh := w.WindowSize()
-	return gui.Column(gui.ContainerCfg{
-		Width:   float32(ww),
-		Height:  float32(wh),
-		Sizing:  gui.FixedFixed,
-		Padding: gui.Some(gui.Padding{}),
-		Content: []gui.View{
-			mapview.Map(mapview.Cfg{
-				ID:            "map",
-				IDFocus:       1,
-				Sizing:        gui.FillFill,
-				InitialCenter: projection.LatLng{Lat: 47.6062, Lng: -122.3321},
-				InitialZoom:   11,
-				Source:        src,
-				A11YLabel:     "Seattle street map",
-			}),
-		},
-	})
+	return mapview.FullWindow(w, mapview.Map(mapview.Cfg{
+		ID:            "map",
+		IDFocus:       1,
+		Sizing:        gui.FillFill,
+		InitialCenter: projection.LatLng{Lat: 47.6062, Lng: -122.3321},
+		InitialZoom:   11,
+		Source:        src,
+		A11YLabel:     "Seattle street map",
+	}))
 }

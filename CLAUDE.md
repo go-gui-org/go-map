@@ -87,11 +87,11 @@ Always run `gofmt -l .` and `golangci-lint run ./...` before committing.
 
 - **Root Layout sizing.** A Layout with `Sizing: FillFill` at the
   view-generator root stays 0×0 — no parent to fill. `renderDrawCanvas`
-  bails in `rectsOverlap` and `OnDraw` never fires. Wrap
-  `mapview.Map` in `gui.Column(ContainerCfg{Sizing: FixedFixed,
-  Width/Height: float32(w.WindowSize())})` or equivalent. See
-  `examples/basic/main.go`. Matches go-gui's own `examples/draw_canvas`
-  and `examples/particles` pattern.
+  bails in `rectsOverlap` and `OnDraw` never fires. Use
+  `mapview.FullWindow(w, v)` for single-widget demos; write a sized
+  `gui.Row` / `gui.Column` by hand for multi-pane windows. See
+  `examples/basic/main.go` for the FullWindow form,
+  `examples/stacked-map/main.go` for a sidebar layout.
 - **DrawCanvas cache.** `DrawCanvasCfg.Version` gates OnDraw re-exec.
   `mapview` bumps Version per frame via `w.FrameCount()` so pan/zoom
   state is never cached stale. Cost: one OnDraw per frame regardless
@@ -107,6 +107,6 @@ Always run `gofmt -l .` and `golangci-lint run ./...` before committing.
 
 - Vector tiles (MVT/protobuf + glyph labels) deferred to v0.2+.
 - MBTiles (offline SQLite) deferred to v0.2+.
-- Self-wrapping Widget vs consumer-wrapping — current API requires
-  consumer to wrap for root sizing. Consider `mapview.FullWindow(...)`
-  helper that bundles Column+FixedFixed.
+- Self-wrapping Widget vs consumer-wrapping — single-widget demos
+  use `mapview.FullWindow(w, v)`; multi-pane layouts still wrap by
+  hand. No plan to push self-sizing into `mapview.Map` itself.
