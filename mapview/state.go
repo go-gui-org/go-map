@@ -20,6 +20,7 @@ const (
 	nsSeeded    = "mapview.seeded"
 	nsInfoRect  = "mapview.inforect"
 	nsVersion   = "mapview.version"
+	nsA11y      = "mapview.a11y"
 	capMaps     = 16
 )
 

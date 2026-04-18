@@ -211,7 +211,7 @@ func (mv *mapView) GenerateLayout(w *gui.Window) gui.Layout {
 
 	a11y := c.A11YDescription
 	if a11y == "" {
-		a11y = stateForA11Y(s, focused)
+		a11y = debouncedA11Y(w, c.ID, stateForA11Y(s, focused))
 	}
 
 	inner := gui.DrawCanvas(gui.DrawCanvasCfg{
