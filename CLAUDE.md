@@ -50,11 +50,12 @@ Tiles render via `dc.Image(x, y, w, h, url, ...)` on the DrawCanvas
 (go-gui v0.12.2+). Overlays draw via `OnDraw(*DrawContext)` on the
 same canvas. No child-View composition; single Shape.
 
-Remote tile fetches go through `gui.WindowCfg.ImageFetcher`. Callers
-supplying a `tile.Source` that implements `tile.HTTPFetcher` should
-wire `cfg.ImageFetcher = src.HTTPFetcher()` so OSM-policy-compliant
-User-Agent headers reach the fetch path. Without this wiring,
-downloads use `go-gui/<version>` UA.
+Remote tile fetches go through `gui.WindowCfg.ImageFetcher` by
+default, but each layer's own `tile.HTTPFetcher` overrides it per
+draw via `gui.DrawContext.ImageWithFetcher` (go-gui v0.12.4+). So
+OSM + WMS stacked in one window carry their own policy-compliant
+User-Agents without a shared composite fetcher. Consumers that wire
+only one source can still rely on `cfg.ImageFetcher` alone.
 
 ### Async Tiles
 
@@ -96,8 +97,11 @@ Always run `gofmt -l .` and `golangci-lint run ./...` before committing.
   state is never cached stale. Cost: one OnDraw per frame regardless
   of state change. Revisit in Phase 2 with a state-version counter.
 - **ImageFetcher UA.** go-gui's default fetcher sends `go-gui/<version>`.
-  OSM policy requires app-identifying UA. Consumer must wire
-  `cfg.ImageFetcher` from a `tile.HTTPFetcher`-implementing source.
+  OSM policy requires app-identifying UA. `mapview.drawLayerTiles`
+  auto-threads each layer Source's `tile.HTTPFetcher` via
+  `dc.ImageWithFetcher` (go-gui v0.12.4+), so wiring
+  `cfg.ImageFetcher` is only needed when the Source does not
+  implement `HTTPFetcher`.
 
 ## Unresolved
 

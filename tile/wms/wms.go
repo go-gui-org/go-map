@@ -13,9 +13,10 @@
 //	    Transparent: true, // overlay reference layer
 //	})
 //
-// The returned Source also implements tile.HTTPFetcher so consumers
-// that wire cfg.ImageFetcher = src.HTTPFetcher() get policy-compliant
-// User-Agent plumbing and body validation before go-gui caches bytes.
+// The returned Source also implements tile.HTTPFetcher. mapview pulls
+// it automatically via DrawContext.ImageWithFetcher (go-gui v0.12.4+),
+// so a WMS layer stacked alongside OSM carries its own User-Agent and
+// body validator without the consumer wiring gui.WindowCfg.ImageFetcher.
 package wms
 
 import (

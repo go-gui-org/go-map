@@ -141,8 +141,19 @@ func drawTiles(dc *gui.DrawContext, vp viewport, layers []Layer) {
 // drawLayerTiles draws one layer's visible tiles. placeholderOK gates
 // the labeled checkerboard fallback — only the base layer renders it,
 // so reference layers stay transparent where their source has no tile.
+//
+// The layer's per-source HTTP fetcher (via tile.HTTPFetcher) is pulled
+// once outside the tile loop and threaded into every dc.ImageWithFetcher
+// call so OSM-policy and WMS-policy User-Agents travel with their own
+// tiles even when both layers stack in the same window. Sources that
+// do not implement tile.HTTPFetcher (e.g. offline / data: URLs) pass
+// nil and fall back to gui.WindowCfg.ImageFetcher.
 func drawLayerTiles(dc *gui.DrawContext, vp viewport, src tile.Source,
 	maxN int32, ts float32, placeholderOK bool) {
+	var fetcher gui.ImageFetcher
+	if hf, ok := src.(tile.HTTPFetcher); ok {
+		fetcher = hf.HTTPFetcher()
+	}
 	for ty := vp.MinTY; ty <= vp.MaxTY; ty++ {
 		if ty < 0 || ty >= maxN {
 			continue
@@ -170,7 +181,8 @@ func drawLayerTiles(dc *gui.DrawContext, vp viewport, src tile.Source,
 				if placeholderOK {
 					bg = tilePlaceholderEven
 				}
-				dc.Image(x, y, ts, ts, url, gui.Opt[float32]{}, bg)
+				dc.ImageWithFetcher(x, y, ts, ts, url,
+					gui.Opt[float32]{}, bg, fetcher)
 				continue
 			}
 			if placeholderOK {
