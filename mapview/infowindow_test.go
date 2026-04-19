@@ -3,6 +3,9 @@ package mapview
 import (
 	"strings"
 	"testing"
+
+	"github.com/mike-ward/go-gui/gui"
+	"github.com/mike-ward/go-map/projection"
 )
 
 // monospaceMeasure returns a measure function that charges w pixels
@@ -83,5 +86,29 @@ func TestTruncateToWidth_OnlyEllipsisFits(t *testing.T) {
 	got := truncateToWidth("hello", 10, monospaceMeasure(10))
 	if got != "…" {
 		t.Errorf("got %q, want %q", got, "…")
+	}
+}
+
+// TestMarkerByID_NonMarkerOverlayReturnsNil: an overlay that exists
+// under the given ID but is not a *Marker must return nil so action
+// dispatch doesn't type-assert into a wrong concrete type.
+func TestMarkerByID_NonMarkerOverlayReturnsNil(t *testing.T) {
+	w := &gui.Window{}
+	id := "m"
+	AddOverlay(w, id, &Polyline{
+		LineID: "notamarker",
+		Points: []projection.LatLng{{}, {}},
+	})
+	if got := markerByID(w, id, "notamarker"); got != nil {
+		t.Errorf("markerByID returned non-nil for a Polyline: %v", got)
+	}
+}
+
+// TestMarkerByID_EmptyIDReturnsNil: an empty markerID must short-circuit
+// to nil without touching the overlay map.
+func TestMarkerByID_EmptyIDReturnsNil(t *testing.T) {
+	w := &gui.Window{}
+	if got := markerByID(w, "m", ""); got != nil {
+		t.Errorf("markerByID(\"\") returned non-nil: %v", got)
 	}
 }

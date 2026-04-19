@@ -316,3 +316,20 @@ func TestScrollSteps_DeltaPlusResidualReconstructsInput(t *testing.T) {
 		}
 	}
 }
+
+// TestShiftCenter_ZeroDeltaIsNoop: shifting by zero pixels must leave
+// the center unchanged — the round-trip through ProjectF/UnprojectF
+// must be lossless at zero displacement.
+func TestShiftCenter_ZeroDeltaIsNoop(t *testing.T) {
+	s := MapState{
+		Center: projection.LatLng{Lat: 47.6, Lng: -122.3},
+		Zoom:   10,
+	}
+	got := shiftCenter(s, 0, 0)
+	if math.Abs(got.Lat-s.Center.Lat) > 1e-9 {
+		t.Errorf("Lat shifted on zero delta: got %v want %v", got.Lat, s.Center.Lat)
+	}
+	if math.Abs(got.Lng-s.Center.Lng) > 1e-9 {
+		t.Errorf("Lng shifted on zero delta: got %v want %v", got.Lng, s.Center.Lng)
+	}
+}

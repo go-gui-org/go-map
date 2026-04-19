@@ -242,6 +242,10 @@ func isFiniteF32(v float32) bool {
 	return isFinite(float64(v))
 }
 
+func mousePositionFinite(e *gui.Event) bool {
+	return isFiniteF32(e.MouseX) && isFiniteF32(e.MouseY)
+}
+
 // drawInfoWindow paints the popup box anchored to (mx, my) — the
 // marker's screen position. Returns the final geometry so drawFocus
 // can persist it for input hit-testing. The popup sits above the
@@ -472,4 +476,84 @@ func truncateUTF8(s string, limit int) string {
 		end--
 	}
 	return s[:end] + "…"
+}
+
+// handlePopupClick consumes a mouse-down that landed on the InfoWindow
+// popup. Close-button and action-button hits dispatch on press
+// (matching the Home button) so no drag-tracking is started; the
+// state write to close the popup fires *before* any action callback so
+// an OnClick that reads Snapshot sees InfoOpen=false. Returns true when
+// the event was consumed (body hits, close, action); false means no
+// popup is drawn or the press was outside the popup rect — caller
+// continues with its normal handling.
+func handlePopupClick(w *gui.Window, id string, e *gui.Event) bool {
+	rect := nsRead[infoRectState](w, nsInfoRect, id)
+	h := rect.hit(e.MouseX, e.MouseY)
+	switch h.Kind {
+	case infoHitMiss:
+		return false
+	case infoHitBody:
+		e.IsHandled = true
+		return true
+	case infoHitClose:
+		closeInfoPopup(w, id)
+		e.IsHandled = true
+		return true
+	case infoHitAction:
+		dispatchInfoAction(w, id, markerByID(w, id, rect.MarkerID), h.Index)
+		e.IsHandled = true
+		return true
+	}
+	return false
+}
+
+// dispatchInfoAction closes the popup and, when idx is in range, fires
+// the action callback. Invariant shared with the keyboard Enter path:
+// registry state is persisted with InfoOpen=false *before* the callback
+// runs so any Snapshot read inside the callback sees the dismissed
+// state. Bounds-guarded against both MaxInfoActions and the live
+// Actions length so a stale index from a shrunken Actions slice cannot
+// OOB.
+func dispatchInfoAction(w *gui.Window, id string, m *Marker, idx int) {
+	closeInfoPopup(w, id)
+	if m == nil || idx < 0 || idx >= MaxInfoActions || idx >= len(m.Actions) {
+		return
+	}
+	if cb := m.Actions[idx].OnClick; cb != nil {
+		cb(w)
+	}
+}
+
+// closeInfoPopup flips InfoOpen off on the map state and resets the
+// popup focus index so the next open lands on the first sub-element.
+// No-op when the popup is already closed so a second close press on a
+// race does not dirty the state map.
+func closeInfoPopup(w *gui.Window, id string) {
+	s := nsRead[MapState](w, nsState, id)
+	if !s.InfoOpen && s.InfoFocusIndex == 0 {
+		return
+	}
+	s.InfoOpen = false
+	s.InfoFocusIndex = 0
+	nsWrite(w, nsState, id, s)
+}
+
+// markerByID fetches the Marker overlay with the given overlay-ID,
+// returning nil when absent or when the overlay is not a Marker. Used
+// by action dispatch to re-resolve the callback at press time — the
+// overlay map may have changed between the frame that rendered the
+// popup and the frame that delivered the click.
+func markerByID(w *gui.Window, id, markerID string) *Marker {
+	if markerID == "" {
+		return nil
+	}
+	o, ok := readOverlays(w, id).Get(markerID)
+	if !ok {
+		return nil
+	}
+	m, ok := o.(*Marker)
+	if !ok {
+		return nil
+	}
+	return m
 }

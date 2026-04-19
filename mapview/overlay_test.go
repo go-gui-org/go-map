@@ -1201,3 +1201,95 @@ func TestInfoRectHit_Priority(t *testing.T) {
 		t.Errorf("outside-rect miss expected: %v", got.Kind)
 	}
 }
+
+// TestPanDragMove_NonFiniteMouseXYIgnored: NaN or ±Inf mouse coords must
+// not flip Moved, must not poison the kinetic velocity EMA, and must not
+// shift the map center. The event is marked handled so no downstream
+// handler sees it.
+func TestPanDragMove_NonFiniteMouseXYIgnored(t *testing.T) {
+	cases := [][2]float32{
+		{float32(math.NaN()), 0},
+		{0, float32(math.NaN())},
+		{float32(math.Inf(1)), 0},
+		{float32(math.Inf(-1)), 0},
+	}
+	for _, coords := range cases {
+		w := &gui.Window{}
+		id := "m"
+		seed := MapState{Center: projection.LatLng{Lat: 10, Lng: 20}, Zoom: 5}
+		readState(w, id, seed)
+		nsWrite(w, nsPan, id, panState{
+			Active: true, StartX: 0, StartY: 0,
+			StartCtr: seed.Center, StartZoom: seed.Zoom,
+		})
+		e := &gui.Event{MouseX: coords[0], MouseY: coords[1]}
+		panDragMove(id)(nil, e, w)
+
+		p := nsRead[panState](w, nsPan, id)
+		if p.Moved {
+			t.Errorf("coords %v: Moved flipped on non-finite coords", coords)
+		}
+		if math.IsNaN(p.VelX) || math.IsNaN(p.VelY) {
+			t.Errorf("coords %v: kinetic velocity poisoned (NaN vel %g/%g)",
+				coords, p.VelX, p.VelY)
+		}
+		if got, _ := Snapshot(w, id); got.Center != seed.Center {
+			t.Errorf("coords %v: center drifted: %+v", coords, got.Center)
+		}
+		if !e.IsHandled {
+			t.Errorf("coords %v: event not marked handled", coords)
+		}
+	}
+}
+
+// TestOnMouseMove_WritesHoverState: a valid mouse-move event writes the
+// cursor position into the hover registry so the HUD coord readout can
+// display it.
+func TestOnMouseMove_WritesHoverState(t *testing.T) {
+	w := &gui.Window{}
+	id := "m"
+	e := &gui.Event{MouseX: 123, MouseY: 456}
+	onMouseMove(id)(nil, e, w)
+
+	h := nsRead[hoverState](w, nsHover, id)
+	if !h.Valid || h.X != 123 || h.Y != 456 {
+		t.Errorf("hover = %+v, want {Valid:true X:123 Y:456}", h)
+	}
+}
+
+// TestOnMouseMove_NonFiniteMouseXYSkipsHoverWrite: NaN or ±Inf cursor
+// coords must not overwrite a previously valid hover entry — the HUD
+// must not render "NaN°N".
+func TestOnMouseMove_NonFiniteMouseXYSkipsHoverWrite(t *testing.T) {
+	cases := [][2]float32{
+		{float32(math.NaN()), 100},
+		{100, float32(math.NaN())},
+		{float32(math.Inf(1)), 100},
+		{float32(math.Inf(-1)), 100},
+	}
+	for _, coords := range cases {
+		w := &gui.Window{}
+		id := "m"
+		nsWrite(w, nsHover, id, hoverState{X: 1, Y: 2, Valid: true})
+		onMouseMove(id)(nil, &gui.Event{MouseX: coords[0], MouseY: coords[1]}, w)
+
+		h := nsRead[hoverState](w, nsHover, id)
+		if !h.Valid || h.X != 1 || h.Y != 2 {
+			t.Errorf("coords %v: hover overwritten: %+v", coords, h)
+		}
+	}
+}
+
+// TestOnMouseLeave_ClearsHoverState: mouse-leave must zero the hover
+// entry so the coord readout falls back to the map center.
+func TestOnMouseLeave_ClearsHoverState(t *testing.T) {
+	w := &gui.Window{}
+	id := "m"
+	nsWrite(w, nsHover, id, hoverState{X: 50, Y: 100, Valid: true})
+	onMouseLeave(id)(nil, nil, w)
+
+	h := nsRead[hoverState](w, nsHover, id)
+	if h.Valid || h.X != 0 || h.Y != 0 {
+		t.Errorf("hover after leave = %+v, want zero value", h)
+	}
+}

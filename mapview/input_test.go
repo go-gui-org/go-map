@@ -225,3 +225,36 @@ func TestZoomToward_CursorAtCenter(t *testing.T) {
 		}
 	}
 }
+
+// onMouseScroll: NaN or ±Inf cursor position must be rejected before the
+// accumulator is written. A valid ScrollY with a bad cursor must not
+// change zoom or accumulator state — zoomToward would otherwise forward
+// NaN through UnprojectF and jump center to (0,0).
+func TestOnMouseScroll_NonFiniteMouseXYIgnored(t *testing.T) {
+	cases := [][2]float32{
+		{float32(math.NaN()), 150},
+		{200, float32(math.NaN())},
+		{float32(math.Inf(1)), 150},
+		{float32(math.Inf(-1)), 150},
+	}
+	for _, coords := range cases {
+		w := &gui.Window{}
+		id := "m"
+		seed := MapState{Center: projection.LatLng{Lat: 0, Lng: 0}, Zoom: 10}
+		readState(w, id, seed)
+
+		h := onMouseScroll(id, 1.0)
+		h(&gui.Layout{Shape: &gui.Shape{Width: 400, Height: 300}},
+			&gui.Event{ScrollY: 1, MouseX: coords[0], MouseY: coords[1]}, w)
+
+		got, _ := Snapshot(w, id)
+		if got.Zoom != 10 {
+			t.Errorf("coords %v: Zoom changed to %g, want 10 (unchanged)",
+				coords, got.Zoom)
+		}
+		if acc := nsRead[float32](w, nsScroll, id); acc != 0 {
+			t.Errorf("coords %v: accumulator = %g, want 0 (event rejected before write)",
+				coords, acc)
+		}
+	}
+}
