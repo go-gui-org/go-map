@@ -30,6 +30,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/semaphore"
+
 	"github.com/mike-ward/go-map/projection"
 	"github.com/mike-ward/go-map/tile"
 )
@@ -97,6 +99,10 @@ type Cfg struct {
 	// UserAgent is sent on every request, sanitized via
 	// tile.SanitizeHeader. Empty falls back to defaultUA.
 	UserAgent string
+
+	// Concurrency caps simultaneous in-flight HTTP requests. 0 uses
+	// tile.DefaultConcurrency. Negative values are treated as 0.
+	Concurrency int
 }
 
 // source implements tile.Source + tile.HTTPFetcher for a pre-built URL
@@ -111,6 +117,7 @@ type source struct {
 	maxZoom     uint32
 	acceptPNG   bool
 	acceptJPEG  bool
+	sem         *semaphore.Weighted
 }
 
 // New returns a WMS tile.Source, or an error when Cfg is incomplete or
@@ -157,6 +164,10 @@ func New(cfg Cfg) (tile.Source, error) {
 	if ua == "" {
 		ua = defaultUA
 	}
+	n := cfg.Concurrency
+	if n <= 0 {
+		n = tile.DefaultConcurrency
+	}
 
 	var buf strings.Builder
 	buf.Grow(len(cfg.Endpoint) + 256)
@@ -186,7 +197,7 @@ func New(cfg Cfg) (tile.Source, error) {
 	return &source{
 		// 20 s — WMS servers do server-side rendering before responding,
 		// which is slower than a simple tile-file serve (OSM uses 15 s).
-		client: &http.Client{Timeout: 20 * time.Second},
+		client:      &http.Client{Timeout: 20 * time.Second},
 		userAgent:   tile.SanitizeHeader(ua),
 		urlPrefix:   buf.String(),
 		format:      format,
@@ -194,6 +205,7 @@ func New(cfg Cfg) (tile.Source, error) {
 		maxZoom:     cfg.MaxZoom,
 		acceptPNG:   format == "image/png",
 		acceptJPEG:  format == "image/jpeg" || format == "image/jpg",
+		sem:         semaphore.NewWeighted(int64(n)),
 	}, nil
 }
 
@@ -271,6 +283,12 @@ func (s *source) Fetch(ctx context.Context, c tile.Coord) ([]byte, error) {
 	if !c.Valid() {
 		return nil, tile.ErrNotFound
 	}
+	if s.sem != nil {
+		if err := s.sem.Acquire(ctx, 1); err != nil {
+			return nil, err
+		}
+		defer s.sem.Release(1)
+	}
 	u := s.URL(c)
 	resp, err := s.do(ctx, u)
 	if err != nil {
@@ -329,6 +347,12 @@ func (s *source) MaxZoom() uint32 { return s.maxZoom }
 // subsequent frame.
 func (s *source) HTTPFetcher() func(ctx context.Context, url string) (*http.Response, error) {
 	return func(ctx context.Context, u string) (*http.Response, error) {
+		if s.sem != nil {
+			if err := s.sem.Acquire(ctx, 1); err != nil {
+				return nil, err
+			}
+			defer s.sem.Release(1)
+		}
 		resp, err := s.do(ctx, u)
 		if err != nil {
 			return nil, err

@@ -6,8 +6,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
+
+	"golang.org/x/sync/semaphore"
 )
 
 // testSource returns an osmSource pointed at the given test-server
@@ -20,6 +24,7 @@ func testSource(t *testing.T, baseURL, ua string) *osmSource {
 		client:    http.DefaultClient,
 		userAgent: SanitizeHeader(ua),
 		urlPrefix: prefix,
+		sem:       semaphore.NewWeighted(DefaultConcurrency),
 	}
 }
 
@@ -341,6 +346,248 @@ func TestTestSource_FetchHitsRightPath(t *testing.T) {
 	}
 	if gotPath != "/4/5/6.png" {
 		t.Errorf("path = %q, want /4/5/6.png", gotPath)
+	}
+}
+
+func TestValidateUserAgent(t *testing.T) {
+	cases := []struct {
+		name    string
+		in      string
+		wantErr bool
+	}{
+		{"empty", "", false},
+		{"valid", "MyApp/1.0 (contact@example.com)", false},
+		{"cr", "bad\rua", true},
+		{"lf", "bad\nua", true},
+		{"crlf", "bad\r\nua", true},
+		{"exact_max", strings.Repeat("a", MaxUserAgentLen), false},
+		{"over_max", strings.Repeat("a", MaxUserAgentLen+1), true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := ValidateUserAgent(c.in)
+			if (err != nil) != c.wantErr {
+				t.Errorf("ValidateUserAgent(%q) err=%v, wantErr=%v", c.in, err, c.wantErr)
+			}
+		})
+	}
+}
+
+// OSMWithConfig(Concurrency:2) must allow at most 2 simultaneous requests.
+func TestOSMWithConfig_ConcurrencyLimit(t *testing.T) {
+	const limit = 2
+	var inflight atomic.Int32
+	var peak atomic.Int32
+	gate := make(chan struct{})
+
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, _ *http.Request) {
+			n := inflight.Add(1)
+			defer inflight.Add(-1)
+			for {
+				old := peak.Load()
+				if n <= old || peak.CompareAndSwap(old, n) {
+					break
+				}
+			}
+			<-gate // hold until released
+			w.Header().Set("Content-Type", "image/png")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(pngFixture)
+		}))
+	defer srv.Close()
+
+	src := OSMWithConfig(OSMConfig{
+		UserAgent:   "test/1",
+		Concurrency: limit,
+	}).(*osmSource)
+	src.urlPrefix = srv.URL + "/"
+
+	fetcher := src.HTTPFetcher()
+	errs := make(chan error, limit+1)
+	for i := range limit + 1 {
+		go func(i int) {
+			resp, err := fetcher(context.Background(),
+				srv.URL+"/1/0/"+strconv.Itoa(i)+".png")
+			if err == nil {
+				_ = resp.Body.Close()
+			}
+			errs <- err
+		}(i)
+	}
+
+	// Release all requests.
+	close(gate)
+	for range limit + 1 {
+		if err := <-errs; err != nil {
+			t.Errorf("fetch error: %v", err)
+		}
+	}
+
+	if p := peak.Load(); p > limit {
+		t.Errorf("peak concurrent = %d, want <= %d", p, limit)
+	}
+}
+
+func TestOSMWithConfig_DefaultConcurrency(t *testing.T) {
+	src := OSMWithConfig(OSMConfig{}).(*osmSource)
+	// With Concurrency=0, DefaultConcurrency slots must be available.
+	if !src.sem.TryAcquire(DefaultConcurrency) {
+		t.Fatalf("expected %d slots, could not acquire all", DefaultConcurrency)
+	}
+	src.sem.Release(DefaultConcurrency)
+}
+
+func TestOSMWithConfig_ZeroConcurrencyDefaults(t *testing.T) {
+	src := OSMWithConfig(OSMConfig{Concurrency: 0}).(*osmSource)
+	if !src.sem.TryAcquire(DefaultConcurrency) {
+		t.Fatalf("Concurrency=0 should default to %d, got fewer slots", DefaultConcurrency)
+	}
+	src.sem.Release(DefaultConcurrency)
+}
+
+func TestOSMWithConfig_NegativeConcurrencyDefaults(t *testing.T) {
+	src := OSMWithConfig(OSMConfig{Concurrency: -5}).(*osmSource)
+	if !src.sem.TryAcquire(DefaultConcurrency) {
+		t.Fatalf("Concurrency=-5 should default to %d, got fewer slots", DefaultConcurrency)
+	}
+	src.sem.Release(DefaultConcurrency)
+}
+
+func TestOSMWithConfig_PropagatesUserAgent(t *testing.T) {
+	var gotUA string
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(_ http.ResponseWriter, r *http.Request) {
+			gotUA = r.Header.Get("User-Agent")
+		}))
+	defer srv.Close()
+
+	src := OSMWithConfig(OSMConfig{UserAgent: "TestApp/2.0"}).(*osmSource)
+	src.urlPrefix = srv.URL + "/"
+	_, _ = src.Fetch(context.Background(), Coord{Z: 1, X: 0, Y: 0})
+	if gotUA != "TestApp/2.0" {
+		t.Errorf("UA = %q, want TestApp/2.0", gotUA)
+	}
+}
+
+func TestOSMWithConfig_EmptyUADefaultsToGoMap(t *testing.T) {
+	var gotUA string
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(_ http.ResponseWriter, r *http.Request) {
+			gotUA = r.Header.Get("User-Agent")
+		}))
+	defer srv.Close()
+
+	src := OSMWithConfig(OSMConfig{}).(*osmSource)
+	src.urlPrefix = srv.URL + "/"
+	_, _ = src.Fetch(context.Background(), Coord{Z: 1, X: 0, Y: 0})
+	if !strings.HasPrefix(gotUA, "go-map/") {
+		t.Errorf("default UA = %q, want go-map/ prefix", gotUA)
+	}
+}
+
+func TestOSMWithConfig_ConcurrencyFive(t *testing.T) {
+	src := OSMWithConfig(OSMConfig{Concurrency: 5}).(*osmSource)
+	if !src.sem.TryAcquire(5) {
+		t.Fatal("Concurrency=5: expected 5 slots")
+	}
+	if src.sem.TryAcquire(1) {
+		t.Error("Concurrency=5: acquired 6th slot, want blocked")
+		src.sem.Release(1)
+	}
+	src.sem.Release(5)
+}
+
+func TestOSMWithConfig_PropagatesContext(t *testing.T) {
+	src := OSMWithConfig(OSMConfig{Concurrency: 1}).(*osmSource)
+	// Fill the semaphore so the next acquire must wait.
+	if !src.sem.TryAcquire(1) {
+		t.Fatal("could not acquire initial slot")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	// Fetch with a pre-cancelled context must return promptly.
+	_, err := src.Fetch(ctx, Coord{Z: 1, X: 0, Y: 0})
+	src.sem.Release(1)
+	if err == nil {
+		t.Fatal("expected error from cancelled context, got nil")
+	}
+}
+
+func TestOSMWithConfig_HTTPFetcherPropagatesContext(t *testing.T) {
+	src := OSMWithConfig(OSMConfig{Concurrency: 1}).(*osmSource)
+	if !src.sem.TryAcquire(1) {
+		t.Fatal("could not acquire initial slot")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	fetcher := src.HTTPFetcher()
+	_, err := fetcher(ctx, "http://localhost/0/0/0.png")
+	src.sem.Release(1)
+	if err == nil {
+		t.Fatal("expected error from cancelled context, got nil")
+	}
+}
+
+func TestOSMWithConfig_ContextCancelledDuringFetch(t *testing.T) {
+	src := OSMWithConfig(OSMConfig{Concurrency: 2})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := src.Fetch(ctx, Coord{Z: 1, X: 0, Y: 0})
+	if err == nil {
+		t.Fatal("expected context error, got nil")
+	}
+}
+
+func TestOSMWithConfig_FetchInvalidCoord(t *testing.T) {
+	src := OSMWithConfig(OSMConfig{})
+	_, err := src.Fetch(context.Background(), Coord{Z: 32, X: 0, Y: 0})
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("invalid coord: err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestOSMWithConfig_URLInvalidCoord(t *testing.T) {
+	src := OSMWithConfig(OSMConfig{})
+	if url := src.URL(Coord{Z: 32, X: 0, Y: 0}); url != "" {
+		t.Errorf("URL of invalid coord = %q, want \"\"", url)
+	}
+}
+
+func TestOSMWithConfig_Attribution(t *testing.T) {
+	src := OSMWithConfig(OSMConfig{})
+	if src.Attribution() == "" {
+		t.Error("Attribution() empty")
+	}
+}
+
+func TestOSMWithConfig_MaxZoom(t *testing.T) {
+	src := OSMWithConfig(OSMConfig{})
+	if src.MaxZoom() == 0 {
+		t.Error("MaxZoom() == 0")
+	}
+}
+
+func TestOSMWithConfig_ImplementsHTTPFetcher(t *testing.T) {
+	src := OSMWithConfig(OSMConfig{})
+	if _, ok := src.(HTTPFetcher); !ok {
+		t.Error("OSMWithConfig result does not implement HTTPFetcher")
+	}
+}
+
+func TestOSMWithConfig_SanitizesUserAgent(t *testing.T) {
+	var gotUA string
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(_ http.ResponseWriter, r *http.Request) {
+			gotUA = r.Header.Get("User-Agent")
+		}))
+	defer srv.Close()
+
+	src := OSMWithConfig(OSMConfig{UserAgent: "evil\r\nX-Bad: yes"}).(*osmSource)
+	src.urlPrefix = srv.URL + "/"
+	_, _ = src.Fetch(context.Background(), Coord{Z: 1, X: 0, Y: 0})
+	if strings.ContainsAny(gotUA, "\r\n") {
+		t.Errorf("UA contains CRLF: %q", gotUA)
 	}
 }
 

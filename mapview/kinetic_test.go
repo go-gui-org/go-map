@@ -193,6 +193,52 @@ func TestKineticFling_UpdateStopsAtFloor(t *testing.T) {
 	}
 }
 
+// dt=0 must not mutate velocity or center — the fling stays active.
+func TestKineticFling_UpdateNoop_ZeroDt(t *testing.T) {
+	w := &gui.Window{}
+	nsWrite(w, nsState, "m", MapState{
+		Center: projection.LatLng{Lat: 10, Lng: 20},
+		Zoom:   8,
+	})
+	k := &kineticFling{
+		mapID: "m", animID: kineticAnimationID("m"),
+		startZoom: 8, vx: -5000, vy: 0,
+	}
+	if !k.Update(w, 0, nil) {
+		t.Fatal("Update(dt=0) returned false; want still-active")
+	}
+	if k.vx != -5000 {
+		t.Errorf("vx changed on zero-dt tick: %v", k.vx)
+	}
+	s := nsRead[MapState](w, nsState, "m")
+	if s.Center.Lat != 10 || s.Center.Lng != 20 {
+		t.Errorf("center shifted on zero-dt tick: %+v", s.Center)
+	}
+}
+
+// A kineticFling with stopped=true must return false on the first call.
+func TestKineticFling_UpdateAlreadyStopped(t *testing.T) {
+	w := &gui.Window{}
+	k := &kineticFling{
+		mapID: "m", animID: kineticAnimationID("m"),
+		startZoom: 8, vx: -5000, stopped: true,
+	}
+	if k.Update(w, 0.016, nil) {
+		t.Error("Update returned true on stopped fling; want false")
+	}
+}
+
+// Two sampleKineticVelocity calls at the same time must not change velocity.
+func TestSampleKineticVelocity_ZeroDt(t *testing.T) {
+	p := panState{}
+	now := time.Unix(0, 1_000_000_000)
+	sampleKineticVelocity(&p, 0, 0, now)   // seed
+	sampleKineticVelocity(&p, 100, 0, now) // same timestamp → dt=0
+	if p.VelX != 0 || p.VelY != 0 {
+		t.Errorf("velocity changed on zero-dt sample: (%v,%v)", p.VelX, p.VelY)
+	}
+}
+
 // SetView (and by extension PanTo / SetZoom, which call it) must
 // cancel a fling — a programmatic recenter overrides momentum.
 func TestSetView_CancelsKineticPan(t *testing.T) {

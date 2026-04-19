@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/mike-ward/go-map/tile"
@@ -507,6 +508,62 @@ func TestNew_EndpointTrailingSeparator(t *testing.T) {
 		if q.Get("service") != "WMS" {
 			t.Errorf("%s: service = %q, want WMS", tc.name, q.Get("service"))
 		}
+	}
+}
+
+// Cfg.Concurrency=2 must allow at most 2 simultaneous in-flight requests.
+func TestNew_ConcurrencyLimit(t *testing.T) {
+	const limit = 2
+	var inflight atomic.Int32
+	var peak atomic.Int32
+	gate := make(chan struct{})
+
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, _ *http.Request) {
+			n := inflight.Add(1)
+			defer inflight.Add(-1)
+			for {
+				old := peak.Load()
+				if n <= old || peak.CompareAndSwap(old, n) {
+					break
+				}
+			}
+			<-gate
+			w.Header().Set("Content-Type", "image/png")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(pngFixture)
+		}))
+	defer srv.Close()
+
+	cfg := validCfg()
+	cfg.Endpoint = srv.URL
+	cfg.Concurrency = limit
+	src, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	fetcher := src.(tile.HTTPFetcher).HTTPFetcher()
+
+	errs := make(chan error, limit+1)
+	for i := range limit + 1 {
+		go func(i int) {
+			resp, err := fetcher(context.Background(),
+				srv.URL+"?bbox=0,0,1,1&i="+strconv.Itoa(i))
+			if err == nil {
+				_ = resp.Body.Close()
+			}
+			errs <- err
+		}(i)
+	}
+
+	close(gate)
+	for range limit + 1 {
+		if err := <-errs; err != nil {
+			t.Errorf("fetch error: %v", err)
+		}
+	}
+	if p := peak.Load(); p > limit {
+		t.Errorf("peak concurrent = %d, want <= %d", p, limit)
 	}
 }
 

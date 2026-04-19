@@ -7,8 +7,14 @@ import (
 
 // Cache is a fixed-capacity LRU of encoded tile bytes keyed by Coord.
 // Safe for concurrent use.
+//
+// LRU ordering reflects Put timestamps only — Get does not promote
+// entries. Under tile workloads, reads are dominated by cache hits from
+// a recently panned viewport (all Puts), so read-promotion has
+// negligible impact on hit rate while removing it allows Get to use a
+// read lock and eliminates contention during concurrent tile fetches.
 type Cache struct {
-	mu    sync.Mutex
+	mu    sync.RWMutex
 	cap   int
 	items map[Coord]*list.Element
 	order *list.List
@@ -32,13 +38,11 @@ func NewCache(capacity int) *Cache {
 	}
 }
 
-// Get returns the cached bytes for c, marking it most-recently-used.
-// ok is false if not present.
+// Get returns the cached bytes for key. ok is false if not present.
 func (c *Cache) Get(key Coord) (data []byte, ok bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	if el, hit := c.items[key]; hit {
-		c.order.MoveToFront(el)
 		return el.Value.(*cacheEntry).data, true
 	}
 	return nil, false
@@ -67,7 +71,7 @@ func (c *Cache) Put(key Coord, data []byte) {
 
 // Len returns the number of entries currently held.
 func (c *Cache) Len() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.order.Len()
 }

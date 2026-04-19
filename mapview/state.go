@@ -11,6 +11,31 @@ import (
 // State-registry namespaces. Convention: "mapview.<purpose>", one
 // namespace per distinct value type, all keyed by Cfg.ID. capMaps is
 // the per-namespace map cap passed to gui.StateMap.
+//
+// Contract:
+//   - All reads and writes go through nsRead/nsWrite only — never
+//     gui.StateMap directly — so no call site bypasses the version bump.
+//   - nsWrite calls invalidatesRender; namespaces in that whitelist
+//     auto-bump the DrawCanvas version so OnDraw re-executes on change.
+//
+// Namespace → value type → invalidates render?
+//
+//	nsState     → MapState                        → yes (pan/zoom/focus/popup)
+//	nsPan       → panState                        → no  (transient drag tracking)
+//	nsHover     → hoverState                      → yes (coord readout update)
+//	nsLastFired → lastFired                        → no  (callback baseline)
+//	nsScroll    → float32                          → no  (zoom accumulator)
+//	nsOverlays  → *BoundedMap[string, Overlay]    → no  (mutated in-place; callers call bumpVersion)
+//	nsSeeded    → bool                             → no  (one-time seed flag)
+//	nsInfoRect  → infoRectState                   → no  (written inside OnDraw — must not loop)
+//	nsVersion   → uint64                           → n/a (is the version counter itself)
+//	nsA11y      → a11yDebounceState               → no  (screen-reader text)
+//	nsLayers    → *BoundedMap[string, Layer]      → yes (tile sources change draw output)
+//	nsCanvas    → canvasSize                      → no  (written inside OnDraw — must not loop)
+//
+// nsInfoRect and nsCanvas must never be added to the invalidatesRender
+// whitelist: both are written from within the OnDraw closure and would
+// create an infinite bump → redraw → bump loop.
 const (
 	nsState     = "mapview.state"
 	nsPan       = "mapview.pan"

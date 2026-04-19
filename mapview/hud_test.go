@@ -1,9 +1,20 @@
 package mapview
 
 import (
+	"context"
 	"math"
 	"testing"
+
+	"github.com/mike-ward/go-map/tile"
 )
+
+// attrSource is a minimal tile.Source with a configurable Attribution string.
+type attrSource struct{ attr string }
+
+func (s attrSource) Fetch(_ context.Context, _ tile.Coord) ([]byte, error) { return nil, nil }
+func (s attrSource) URL(_ tile.Coord) string                               { return "" }
+func (s attrSource) Attribution() string                                   { return s.attr }
+func (s attrSource) MaxZoom() uint32                                       { return 19 }
 
 // TestNiceRound: scale-bar lengths must come from the {1,2,5}×10ⁿ
 // sequence and never exceed the input ceiling.
@@ -163,6 +174,54 @@ func TestMetersPerPixel_FractionalContinuity(t *testing.T) {
 	if !(mpp11 < mpp10_5 && mpp10_5 < mpp10) {
 		t.Errorf("mpp bracketing failed: mpp11=%g mpp10.5=%g mpp10=%g",
 			mpp11, mpp10_5, mpp10)
+	}
+}
+
+// TestComposeAttribution: unique attributions joined; duplicates dropped;
+// nil-Source layers skipped; empty attribution strings skipped.
+func TestComposeAttribution(t *testing.T) {
+	osm := Layer{Source: attrSource{"© OSM"}, Kind: LayerKindBase, Visible: true, Opacity: 1}
+	wms := Layer{Source: attrSource{"© WMS"}, Kind: LayerKindReference, Visible: true, Opacity: 1}
+	dup := Layer{Source: attrSource{"© OSM"}, Kind: LayerKindReference, Visible: true, Opacity: 1}
+	empty := Layer{Source: attrSource{""}, Kind: LayerKindReference, Visible: true, Opacity: 1}
+	noSrc := Layer{Source: nil, Kind: LayerKindReference, Visible: true, Opacity: 1}
+
+	cases := []struct {
+		name   string
+		layers []Layer
+		want   string
+	}{
+		{"empty", nil, ""},
+		{"single", []Layer{osm}, "© OSM"},
+		{"two_unique", []Layer{osm, wms}, "© OSM | © WMS"},
+		{"dedup", []Layer{osm, dup}, "© OSM"},
+		{"skip_empty_attr", []Layer{osm, empty}, "© OSM"},
+		{"skip_nil_source", []Layer{osm, noSrc}, "© OSM"},
+		{"order_preserved", []Layer{wms, osm}, "© WMS | © OSM"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := composeAttribution(c.layers)
+			if got != c.want {
+				t.Errorf("got %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+// TestMetricBar_ZeroMpp: zero mpp must produce empty label and zero px.
+func TestMetricBar_ZeroMpp(t *testing.T) {
+	label, px := metricBar(0, 110)
+	if label != "" || px != 0 {
+		t.Errorf("metricBar(0, 110) = (%q, %g), want (\"\", 0)", label, px)
+	}
+}
+
+// TestImperialBar_ZeroMpp: zero mpp must produce empty label and zero px.
+func TestImperialBar_ZeroMpp(t *testing.T) {
+	label, px := imperialBar(0, 110)
+	if label != "" || px != 0 {
+		t.Errorf("imperialBar(0, 110) = (%q, %g), want (\"\", 0)", label, px)
 	}
 }
 

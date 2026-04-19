@@ -27,7 +27,12 @@ func (c Coord) String() string {
 	return string(b)
 }
 
-// Valid reports whether c is in range for its zoom level.
+// Valid reports whether c is a legal tile address at zoom Z. The valid
+// range for both X and Y is [0, 2^Z). Computed as uint32(1)<<c.Z, which
+// is 0 when Z >= 32 (Go integer shift: a shift count >= the type's bit
+// width yields 0 — defined, not undefined behaviour). Valid therefore
+// returns false for Z >= 32, matching the practical ceiling of every
+// supported tile provider. This is correct, not a bug.
 func (c Coord) Valid() bool {
 	n := uint32(1) << c.Z
 	return c.X < n && c.Y < n

@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/sync/semaphore"
 )
 
 // osmSource fetches tiles from the public OSM tile server.
@@ -21,6 +23,7 @@ type osmSource struct {
 	client    *http.Client
 	userAgent string
 	urlPrefix string // per-server URL stem; overridable in tests.
+	sem       *semaphore.Weighted
 }
 
 // osmURLPrefix is the production OSM tile-server URL stem.
@@ -31,12 +34,49 @@ const osmURLPrefix = "https://tile.openstreetmap.org/"
 // driving io.ReadAll into unbounded memory.
 const maxTileBytes int64 = 4 << 20 // 4 MiB
 
+// DefaultConcurrency is the number of concurrent tile HTTP requests an
+// OSM or WMS source allows when Concurrency is 0. Chosen to saturate a
+// typical viewport during panning without overwhelming the tile server.
+const DefaultConcurrency = 12
+
+// OSMConfig parameterises an OSM tile source. Zero values are safe:
+// UserAgent defaults to the go-map UA; Concurrency defaults to
+// DefaultConcurrency.
+type OSMConfig struct {
+	// UserAgent is sent on every request. Empty falls back to
+	// "go-map/0 (https://github.com/mike-ward/go-map)".
+	UserAgent string
+	// Concurrency caps simultaneous in-flight HTTP requests. 0 uses
+	// DefaultConcurrency. Negative values are treated as 0.
+	Concurrency int
+}
+
+// OSMWithConfig returns an OSM tile source configured from cfg.
+func OSMWithConfig(cfg OSMConfig) Source {
+	ua := cfg.UserAgent
+	if ua == "" {
+		ua = "go-map/0 (https://github.com/mike-ward/go-map)"
+	}
+	n := cfg.Concurrency
+	if n <= 0 {
+		n = DefaultConcurrency
+	}
+	return &osmSource{
+		// 15 s matches OSM's recommended per-tile deadline; longer would
+		// hold connections open during tile-server congestion.
+		client:    &http.Client{Timeout: 15 * time.Second},
+		userAgent: SanitizeHeader(ua),
+		urlPrefix: osmURLPrefix,
+		sem:       semaphore.NewWeighted(int64(n)),
+	}
+}
+
 // OSM returns a tile source backed by the public OpenStreetMap tile
 // server. The caller must set a descriptive User-Agent via
 // OSMWithUserAgent for production use; heavy/anonymous traffic is
 // blocked by OSM policy.
 func OSM() Source {
-	return OSMWithUserAgent("go-map/0 (https://github.com/mike-ward/go-map)")
+	return OSMWithConfig(OSMConfig{})
 }
 
 // OSMWithUserAgent returns an OSM tile source using the given
@@ -45,13 +85,7 @@ func OSM() Source {
 // truncated; callers with dynamically constructed UAs should
 // verify len(ua) <= MaxUserAgentLen before calling.
 func OSMWithUserAgent(ua string) Source {
-	return &osmSource{
-		// 15 s matches OSM's recommended per-tile deadline; longer would
-		// hold connections open during tile-server congestion.
-		client: &http.Client{Timeout: 15 * time.Second},
-		userAgent: SanitizeHeader(ua),
-		urlPrefix: osmURLPrefix,
-	}
+	return OSMWithConfig(OSMConfig{UserAgent: ua})
 }
 
 // MaxUserAgentLen caps the length of the User-Agent set on outbound
@@ -72,6 +106,21 @@ func SanitizeHeader(s string) string {
 		out = out[:MaxUserAgentLen]
 	}
 	return out
+}
+
+// ValidateUserAgent returns a non-nil error if ua contains CR or LF, or
+// if len(strings.TrimSpace(ua)) exceeds MaxUserAgentLen. It does not
+// modify ua. Callers constructing UAs dynamically from user input should
+// call this before OSMWithUserAgent so truncation surfaces as an
+// explicit error rather than being silently applied.
+func ValidateUserAgent(ua string) error {
+	if strings.ContainsAny(ua, "\r\n") {
+		return fmt.Errorf("tile: user-agent contains CR or LF")
+	}
+	if len(strings.TrimSpace(ua)) > MaxUserAgentLen {
+		return fmt.Errorf("tile: user-agent exceeds %d bytes", MaxUserAgentLen)
+	}
+	return nil
 }
 
 // buildTileURL composes "{prefix}{z}/{x}/{y}.png" without going
@@ -99,6 +148,12 @@ func (s *osmSource) URL(c Coord) string {
 func (s *osmSource) Fetch(ctx context.Context, c Coord) ([]byte, error) {
 	if !c.Valid() {
 		return nil, ErrNotFound
+	}
+	if s.sem != nil {
+		if err := s.sem.Acquire(ctx, 1); err != nil {
+			return nil, err
+		}
+		defer s.sem.Release(1)
 	}
 	url := buildTileURL(s.urlPrefix, c)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -150,6 +205,12 @@ func (*osmSource) MaxZoom() uint32 { return 19 }
 // downstream io.Copy still streams.
 func (s *osmSource) HTTPFetcher() func(ctx context.Context, url string) (*http.Response, error) {
 	return func(ctx context.Context, url string) (*http.Response, error) {
+		if s.sem != nil {
+			if err := s.sem.Acquire(ctx, 1); err != nil {
+				return nil, err
+			}
+			defer s.sem.Release(1)
+		}
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
 			return nil, err

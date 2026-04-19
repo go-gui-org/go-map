@@ -97,9 +97,10 @@ field — accessibility is a constraint, not a feature.
   `examples/basic/main.go` for the FullWindow form,
   `examples/stacked-map/main.go` for a sidebar layout.
 - **DrawCanvas cache.** `DrawCanvasCfg.Version` gates OnDraw re-exec.
-  `mapview` bumps Version per frame via `w.FrameCount()` so pan/zoom
-  state is never cached stale. Cost: one OnDraw per frame regardless
-  of state change. Revisit in Phase 2 with a state-version counter.
+  `mapview` drives Version from a per-map counter incremented only when
+  `MapState`, hover position, or layer configuration changes (via
+  `bumpVersion` in `mapview/state.go`). No-op frames replay the cached
+  draw without calling OnDraw.
 - **ImageFetcher UA.** go-gui's default fetcher sends `go-gui/<version>`.
   OSM policy requires app-identifying UA. `mapview.drawLayerTiles`
   auto-threads each layer Source's `tile.HTTPFetcher` via
