@@ -6,17 +6,17 @@ package main
 import (
 	"fmt"
 
-	"github.com/mike-ward/go-gui/gui"
-	"github.com/mike-ward/go-gui/gui/backend"
-	"github.com/mike-ward/go-map/mapview"
-	"github.com/mike-ward/go-map/projection"
-	"github.com/mike-ward/go-map/tile"
+	"github.com/go-gui-org/go-gui/gui"
+	"github.com/go-gui-org/go-gui/gui/backend"
+	"github.com/go-gui-org/go-map/mapview"
+	"github.com/go-gui-org/go-map/projection"
+	"github.com/go-gui-org/go-map/tile"
 )
 
 const mapID = "partial-map"
 
 var src = tile.OSMWithUserAgent(
-	"go-map-partial-example/0 (https://github.com/mike-ward/go-map)",
+	"go-map-partial-example/0 (https://github.com/go-gui-org/go-map)",
 )
 
 func main() {

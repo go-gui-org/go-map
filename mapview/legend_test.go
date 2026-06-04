@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mike-ward/go-gui/gui"
+	"github.com/go-gui-org/go-gui/gui"
 )
 
 // TestLegend_PanicsOnEmptyMapID locks the required-field contract.

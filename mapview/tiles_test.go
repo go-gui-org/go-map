@@ -5,9 +5,9 @@ import (
 	"math"
 	"testing"
 
-	"github.com/mike-ward/go-gui/gui"
-	"github.com/mike-ward/go-map/projection"
-	"github.com/mike-ward/go-map/tile"
+	"github.com/go-gui-org/go-gui/gui"
+	"github.com/go-gui-org/go-map/projection"
+	"github.com/go-gui-org/go-map/tile"
 )
 
 // Seattle: a convenient non-trivial point that lands cleanly inside a

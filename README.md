@@ -3,7 +3,7 @@
 [![Go 1.26+](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
-Interactive slippy-tile map widget for [go-gui](https://github.com/mike-ward/go-gui).
+Interactive slippy-tile map widget for [go-gui](https://github.com/go-gui-org/go-gui).
 Raster tiles, pan/zoom, vector overlays, stacked layers.
 
 ![Screenshot](screenshot.png)
@@ -38,11 +38,11 @@ Raster tiles, pan/zoom, vector overlays, stacked layers.
 package main
 
 import (
-    "github.com/mike-ward/go-gui/gui"
-    "github.com/mike-ward/go-gui/gui/backend"
-    "github.com/mike-ward/go-map/mapview"
-    "github.com/mike-ward/go-map/projection"
-    "github.com/mike-ward/go-map/tile"
+    "github.com/go-gui-org/go-gui/gui"
+    "github.com/go-gui-org/go-gui/gui/backend"
+    "github.com/go-gui-org/go-map/mapview"
+    "github.com/go-gui-org/go-map/projection"
+    "github.com/go-gui-org/go-map/tile"
 )
 
 var src = tile.OSMWithUserAgent("my-app/1.0 (contact@example.com)")
@@ -137,7 +137,7 @@ mapview.AddOverlay(w, "map", &mapview.Circle{
 Stack a WMS reference layer over an OSM base:
 
 ```go
-import "github.com/mike-ward/go-map/tile/wms"
+import "github.com/go-gui-org/go-map/tile/wms"
 
 wmsSrc, _ := wms.New(wms.Cfg{
     Endpoint:    "https://ows.example.com/wms",

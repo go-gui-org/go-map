@@ -3,7 +3,7 @@
 // report.
 package a
 
-import "github.com/mike-ward/go-map/mapview"
+import "github.com/go-gui-org/go-map/mapview"
 
 var emptyLabel = ""
 

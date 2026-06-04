@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mike-ward/go-gui/gui"
-	"github.com/mike-ward/go-map/projection"
+	"github.com/go-gui-org/go-gui/gui"
+	"github.com/go-gui-org/go-map/projection"
 )
 
 // First call to sampleKineticVelocity seeds LastX/Y/T and leaves the

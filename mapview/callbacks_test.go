@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/mike-ward/go-gui/gui"
-	"github.com/mike-ward/go-map/projection"
+	"github.com/go-gui-org/go-gui/gui"
+	"github.com/go-gui-org/go-map/projection"
 )
 
 func TestFireDecision_FirstFrameSeedsBaseline(t *testing.T) {

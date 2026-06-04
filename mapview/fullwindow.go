@@ -1,6 +1,6 @@
 package mapview
 
-import "github.com/mike-ward/go-gui/gui"
+import "github.com/go-gui-org/go-gui/gui"
 
 // FullWindow wraps v in a FixedFixed Column sized to the current
 // window, giving a single FillFill child (typically mapview.Map) a

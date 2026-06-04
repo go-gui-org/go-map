@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mike-ward/go-gui/gui"
-	"github.com/mike-ward/go-map/projection"
-	"github.com/mike-ward/go-map/tile"
+	"github.com/go-gui-org/go-gui/gui"
+	"github.com/go-gui-org/go-map/projection"
+	"github.com/go-gui-org/go-map/tile"
 )
 
 // fakeSource is a minimal tile.Source stub that yields deterministic

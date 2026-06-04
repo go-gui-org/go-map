@@ -1,7 +1,7 @@
 package mapview
 
 import (
-	"github.com/mike-ward/go-gui/gui"
+	"github.com/go-gui-org/go-gui/gui"
 )
 
 // focusRingRadius is the screen-pixel radius of the outline drawn

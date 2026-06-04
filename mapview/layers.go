@@ -1,8 +1,8 @@
 package mapview
 
 import (
-	"github.com/mike-ward/go-gui/gui"
-	"github.com/mike-ward/go-map/tile"
+	"github.com/go-gui-org/go-gui/gui"
+	"github.com/go-gui-org/go-map/tile"
 )
 
 // LayerKind distinguishes exclusive base layers from stackable reference

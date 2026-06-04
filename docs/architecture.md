@@ -1,6 +1,6 @@
 # go-map Architecture
 
-Interactive slippy-tile map widget for [go-gui](https://github.com/mike-ward/go-gui).
+Interactive slippy-tile map widget for [go-gui](https://github.com/go-gui-org/go-gui).
 Tiles load asynchronously; `gui.Window.RequestRedraw()` wakes the frame loop on arrival.
 
 ---

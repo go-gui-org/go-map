@@ -5,7 +5,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/mike-ward/go-map/tile"
+	"github.com/go-gui-org/go-map/tile"
 )
 
 // attrSource is a minimal tile.Source with a configurable Attribution string.

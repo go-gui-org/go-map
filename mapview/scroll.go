@@ -3,8 +3,8 @@ package mapview
 import (
 	"math"
 
-	"github.com/mike-ward/go-gui/gui"
-	"github.com/mike-ward/go-map/projection"
+	"github.com/go-gui-org/go-gui/gui"
+	"github.com/go-gui-org/go-map/projection"
 )
 
 // onMouseScroll handles wheel zoom. Positive ScrollY zooms in;

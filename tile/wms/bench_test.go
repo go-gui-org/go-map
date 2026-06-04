@@ -3,7 +3,7 @@ package wms
 import (
 	"testing"
 
-	"github.com/mike-ward/go-map/tile"
+	"github.com/go-gui-org/go-map/tile"
 )
 
 var benchCoord = tile.Coord{Z: 11, X: 328, Y: 715}

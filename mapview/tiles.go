@@ -3,9 +3,9 @@ package mapview
 import (
 	"math"
 
-	"github.com/mike-ward/go-gui/gui"
-	"github.com/mike-ward/go-map/projection"
-	"github.com/mike-ward/go-map/tile"
+	"github.com/go-gui-org/go-gui/gui"
+	"github.com/go-gui-org/go-map/projection"
+	"github.com/go-gui-org/go-map/tile"
 )
 
 // viewport holds the derived screen geometry for one frame: size in

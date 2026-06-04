@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/mike-ward/go-map/tile"
+	"github.com/go-gui-org/go-map/tile"
 )
 
 // pngFixture passes tile.IsPNG; test servers return it to satisfy the

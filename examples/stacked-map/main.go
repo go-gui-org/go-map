@@ -10,12 +10,12 @@
 package main
 
 import (
-	"github.com/mike-ward/go-gui/gui"
-	"github.com/mike-ward/go-gui/gui/backend"
-	"github.com/mike-ward/go-map/mapview"
-	"github.com/mike-ward/go-map/projection"
-	"github.com/mike-ward/go-map/tile"
-	"github.com/mike-ward/go-map/tile/wms"
+	"github.com/go-gui-org/go-gui/gui"
+	"github.com/go-gui-org/go-gui/gui/backend"
+	"github.com/go-gui-org/go-map/mapview"
+	"github.com/go-gui-org/go-map/projection"
+	"github.com/go-gui-org/go-map/tile"
+	"github.com/go-gui-org/go-map/tile/wms"
 )
 
 const (
@@ -34,7 +34,7 @@ var initCenter = projection.LatLng{Lat: 51.5074, Lng: -0.1278}
 func main() {
 	osmSrc := tile.OSMWithUserAgent(
 		"go-map stacked-demo/0 osm " +
-			"(https://github.com/mike-ward/go-map)")
+			"(https://github.com/go-gui-org/go-map)")
 
 	// Terrestris publishes a grayscale OSM render at
 	// ows.terrestris.de/osm-gray; no auth, EPSG:3857, PNG output.
@@ -47,7 +47,7 @@ func main() {
 			"© OpenStreetMap contributors",
 		MaxZoom: 18,
 		UserAgent: "go-map stacked-demo/0 terrestris " +
-			"(https://github.com/mike-ward/go-map)",
+			"(https://github.com/go-gui-org/go-map)",
 	})
 	if err != nil {
 		panic(err)

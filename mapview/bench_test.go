@@ -3,7 +3,7 @@ package mapview
 import (
 	"testing"
 
-	"github.com/mike-ward/go-map/projection"
+	"github.com/go-gui-org/go-map/projection"
 )
 
 var benchState = MapState{

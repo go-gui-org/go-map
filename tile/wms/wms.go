@@ -32,8 +32,8 @@ import (
 
 	"golang.org/x/sync/semaphore"
 
-	"github.com/mike-ward/go-map/projection"
-	"github.com/mike-ward/go-map/tile"
+	"github.com/go-gui-org/go-map/projection"
+	"github.com/go-gui-org/go-map/tile"
 )
 
 // mercatorR is half the width of the EPSG:3857 world, in meters. Every
@@ -48,7 +48,7 @@ const maxBodyBytes int64 = 8 << 20
 // defaultUA identifies the client when Cfg.UserAgent is empty. Some
 // WMS deployments (USGS, GeoServer with throttling) require a
 // non-empty UA.
-const defaultUA = "go-map/0 (https://github.com/mike-ward/go-map)"
+const defaultUA = "go-map/0 (https://github.com/go-gui-org/go-map)"
 
 // tileEdge is the slippy tile pixel edge length, mirrored from
 // projection.TileSize so the WMS WIDTH/HEIGHT match the tile grid.

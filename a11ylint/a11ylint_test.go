@@ -5,7 +5,7 @@ import (
 
 	"golang.org/x/tools/go/analysis/analysistest"
 
-	"github.com/mike-ward/go-map/a11ylint"
+	"github.com/go-gui-org/go-map/a11ylint"
 )
 
 // TestAnalyzer runs the analyzer against testdata/src/a, which

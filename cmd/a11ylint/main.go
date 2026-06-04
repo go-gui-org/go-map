@@ -7,7 +7,7 @@ package main
 import (
 	"golang.org/x/tools/go/analysis/singlechecker"
 
-	"github.com/mike-ward/go-map/a11ylint"
+	"github.com/go-gui-org/go-map/a11ylint"
 )
 
 func main() { singlechecker.Main(a11ylint.Analyzer) }

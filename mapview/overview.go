@@ -1,9 +1,9 @@
 package mapview
 
 import (
-	"github.com/mike-ward/go-gui/gui"
-	"github.com/mike-ward/go-map/projection"
-	"github.com/mike-ward/go-map/tile"
+	"github.com/go-gui-org/go-gui/gui"
+	"github.com/go-gui-org/go-map/projection"
+	"github.com/go-gui-org/go-map/tile"
 )
 
 // OverviewCfg configures a locator-style inset map that mirrors the

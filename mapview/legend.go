@@ -1,6 +1,6 @@
 package mapview
 
-import "github.com/mike-ward/go-gui/gui"
+import "github.com/go-gui-org/go-gui/gui"
 
 // LegendCfg configures a Legend widget. MapID is the Cfg.ID of the
 // Map whose layers the legend should list; the legend re-reads the

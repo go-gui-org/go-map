@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mike-ward/go-gui/gui"
+	"github.com/go-gui-org/go-gui/gui"
 )
 
 // a11yTestClock drives debouncedA11Y's time source so tests can

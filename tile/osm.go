@@ -44,7 +44,7 @@ const DefaultConcurrency = 12
 // DefaultConcurrency.
 type OSMConfig struct {
 	// UserAgent is sent on every request. Empty falls back to
-	// "go-map/0 (https://github.com/mike-ward/go-map)".
+	// "go-map/0 (https://github.com/go-gui-org/go-map)".
 	UserAgent string
 	// Concurrency caps simultaneous in-flight HTTP requests. 0 uses
 	// DefaultConcurrency. Negative values are treated as 0.
@@ -55,7 +55,7 @@ type OSMConfig struct {
 func OSMWithConfig(cfg OSMConfig) Source {
 	ua := cfg.UserAgent
 	if ua == "" {
-		ua = "go-map/0 (https://github.com/mike-ward/go-map)"
+		ua = "go-map/0 (https://github.com/go-gui-org/go-map)"
 	}
 	n := cfg.Concurrency
 	if n <= 0 {

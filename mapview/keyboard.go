@@ -1,8 +1,8 @@
 package mapview
 
 import (
-	"github.com/mike-ward/go-gui/gui"
-	"github.com/mike-ward/go-map/projection"
+	"github.com/go-gui-org/go-gui/gui"
+	"github.com/go-gui-org/go-map/projection"
 )
 
 func onKeyDown(c Cfg, seed MapState) func(*gui.Layout, *gui.Event, *gui.Window) {

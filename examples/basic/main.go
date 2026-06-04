@@ -2,18 +2,18 @@
 package main
 
 import (
-	"github.com/mike-ward/go-gui/gui"
-	"github.com/mike-ward/go-gui/gui/backend"
-	"github.com/mike-ward/go-map/mapview"
-	"github.com/mike-ward/go-map/projection"
-	"github.com/mike-ward/go-map/tile"
+	"github.com/go-gui-org/go-gui/gui"
+	"github.com/go-gui-org/go-gui/gui/backend"
+	"github.com/go-gui-org/go-map/mapview"
+	"github.com/go-gui-org/go-map/projection"
+	"github.com/go-gui-org/go-map/tile"
 )
 
 // src is shared between the mapview Source and the window's
 // ImageFetcher so tile downloads on the render path carry the same
 // OSM-policy-compliant User-Agent as Fetch() would.
 var src = tile.OSMWithUserAgent(
-	"go-map-example/0 (https://github.com/mike-ward/go-map)",
+	"go-map-example/0 (https://github.com/go-gui-org/go-map)",
 )
 
 func main() {

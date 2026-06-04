@@ -3,8 +3,8 @@ package mapview
 import (
 	"time"
 
-	"github.com/mike-ward/go-gui/gui"
-	"github.com/mike-ward/go-map/projection"
+	"github.com/go-gui-org/go-gui/gui"
+	"github.com/go-gui-org/go-map/projection"
 )
 
 // dragThresholdPx is the pixel distance separating a click from a pan.

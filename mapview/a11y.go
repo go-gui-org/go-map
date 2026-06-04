@@ -3,7 +3,7 @@ package mapview
 import (
 	"time"
 
-	"github.com/mike-ward/go-gui/gui"
+	"github.com/go-gui-org/go-gui/gui"
 )
 
 // a11yDebounce is the idle window before a new map state is

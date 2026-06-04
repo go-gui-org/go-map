@@ -55,7 +55,7 @@ func init() {
 // targetPkg is the import path hosting the overlay types. A string
 // match keeps the Analyzer runnable against code that re-vendors
 // go-map without forcing a module-graph resolution at lint time.
-const targetPkg = "github.com/mike-ward/go-map/mapview"
+const targetPkg = "github.com/go-gui-org/go-map/mapview"
 
 // targets enumerates the struct type names whose composite literals
 // require a non-empty Label field. Restricted to types whose Label is
