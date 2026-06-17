@@ -124,10 +124,10 @@ func TestGallery_GenerateLayoutPropagatesChildren(t *testing.T) {
 		LayerID: "osm", Source: fakeSource{}, Kind: LayerKindBase,
 		Visible: true,
 	})
-	root := gui.GenerateViewLayout(Gallery(GalleryCfg{
+	root := Gallery(GalleryCfg{
 		MapID: "m", Title: "Bases",
 		Entries: []GalleryEntry{{LayerID: "osm", Label: "OSM"}},
-	}), w)
+	}).GenerateLayout(w)
 	if len(root.Children) == 0 {
 		t.Error("GenerateLayout dropped children; got empty Children")
 	}

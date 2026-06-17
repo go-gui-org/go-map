@@ -206,7 +206,7 @@ func TestOverview_GenerateLayoutBuildsInnerMap(t *testing.T) {
 		InitialCenter: projection.LatLng{Lat: 47.6, Lng: -122.3},
 		InitialZoom:   6,
 	})
-	root := gui.GenerateViewLayout(v, w)
+	root := v.GenerateLayout(w)
 	if root.Shape == nil {
 		t.Fatal("root Shape is nil; inner Map did not generate")
 	}

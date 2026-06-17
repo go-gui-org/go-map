@@ -100,8 +100,8 @@ func (*overviewView) Content() []gui.View { return nil }
 
 // GenerateLayout syncs the viewport rectangle from the target's
 // latest snapshot, then delegates the actual layout to an inner
-// mapview.Map. Using gui.GenerateViewLayout on the inner Map picks up
-// its (single-layer) child structure — mirrors the Legend fix.
+// mapview.Map. The inner Map's Content() is nil, so
+// GenerateLayout alone suffices — no recursion needed.
 func (ov *overviewView) GenerateLayout(w *gui.Window) gui.Layout {
 	syncOverviewRect(w, ov.cfg)
 	target := ov.cfg.MapID
@@ -123,7 +123,7 @@ func (ov *overviewView) GenerateLayout(w *gui.Window) gui.Layout {
 			PanTo(ww, target, ll)
 		},
 	})
-	return gui.GenerateViewLayout(inner, w)
+	return inner.GenerateLayout(w)
 }
 
 // syncOverviewRect writes the viewport-rectangle overlay onto the

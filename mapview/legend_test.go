@@ -129,8 +129,7 @@ func TestLegend_GenerateLayoutPropagatesChildren(t *testing.T) {
 	AddLayer(w, "m", Layer{
 		LayerID: "b", Name: "B", Source: fakeSource{}, Visible: true,
 	})
-	root := gui.GenerateViewLayout(
-		Legend(LegendCfg{MapID: "m", Title: "Layers"}), w)
+	root := Legend(LegendCfg{MapID: "m", Title: "Layers"}).GenerateLayout(w)
 	// Root layout is the Column shape; its Children must include the
 	// Title Hero Text + one Toggle per named layer. Three children
 	// total. An empty Children slice is the regression.

@@ -61,13 +61,13 @@ type legendView struct {
 func (*legendView) Content() []gui.View { return nil }
 
 // GenerateLayout rebuilds the row list from the current layer
-// registry, then hands the inner Column to gui.GenerateViewLayout so
+// registry, then hands the inner Column to layoutRecursive so
 // the recursion picks up Title + Toggle children. Returning
 // buildLegend's bare Column.GenerateLayout dropped every child because
 // Content() is nil — only the empty Column shape survived to the
 // layout pass.
 func (lv *legendView) GenerateLayout(w *gui.Window) gui.Layout {
-	return gui.GenerateViewLayout(buildLegend(w, lv.cfg), w)
+	return layoutRecursive(buildLegend(w, lv.cfg), w)
 }
 
 // Legend returns a View listing every named layer of the map
