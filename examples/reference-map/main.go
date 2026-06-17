@@ -36,7 +36,7 @@ var (
 )
 
 func main() {
-	gui.SetTheme(gui.ThemeDarkBordered)
+	gui.SetTheme(gui.ThemeDark.WithBorders(true))
 	cfg := gui.WindowCfg{
 		Title:  "go-map — reference",
 		Width:  1200,

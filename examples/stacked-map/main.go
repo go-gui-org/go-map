@@ -53,7 +53,7 @@ func main() {
 		panic(err)
 	}
 
-	gui.SetTheme(gui.ThemeDarkBordered)
+	gui.SetTheme(gui.ThemeDark.WithBorders(true))
 	cfg := gui.WindowCfg{
 		Title:  "go-map — stacked layers (OSM + terrestris WMS)",
 		Width:  1200,

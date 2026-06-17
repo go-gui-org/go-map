@@ -48,7 +48,7 @@ func main() {
 		panic(err)
 	}
 
-	gui.SetTheme(gui.ThemeDarkBordered)
+	gui.SetTheme(gui.ThemeDark.WithBorders(true))
 	cfg := gui.WindowCfg{
 		Title:  "go-map — gallery (base-layer picker)",
 		Width:  1200,

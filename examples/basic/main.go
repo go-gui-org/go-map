@@ -17,7 +17,7 @@ var src = tile.OSMWithUserAgent(
 )
 
 func main() {
-	gui.SetTheme(gui.ThemeDarkBordered)
+	gui.SetTheme(gui.ThemeDark.WithBorders(true))
 	cfg := gui.WindowCfg{
 		Title:  "go-map",
 		Width:  900,
