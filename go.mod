@@ -3,7 +3,7 @@ module github.com/go-gui-org/go-map
 go 1.26.0
 
 require (
-	github.com/go-gui-org/go-gui v0.32.1
+	github.com/go-gui-org/go-gui v0.33.1
 	golang.org/x/sync v0.22.0
 	golang.org/x/tools v0.47.0
 )
@@ -13,7 +13,7 @@ require (
 	github.com/dlclark/regexp2/v2 v2.2.2 // indirect
 	github.com/ebitengine/purego v0.10.1 // indirect
 	github.com/go-gl/gl v0.0.0-20260331235117-4566fea9a276 // indirect
-	github.com/go-gui-org/go-glyph v1.16.1 // indirect
+	github.com/go-gui-org/go-glyph v1.16.2 // indirect
 	github.com/go-pdf/fpdf v0.9.0 // indirect
 	github.com/go-text/typesetting v0.3.4 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
