@@ -36,7 +36,9 @@ type OverviewCfg struct {
 	MinHeight float32
 	MaxHeight float32
 
-	IDFocus uint32
+	// Focusable opts the overview into keyboard focus. Focus identity
+	// is Cfg.ID; tab order follows layout order.
+	Focusable bool
 
 	// Initial viewport. Consumers typically pass the target's own
 	// InitialCenter and (InitialZoom - 4) so the overview opens
@@ -114,7 +116,7 @@ func (ov *overviewView) GenerateLayout(w *gui.Window) gui.Layout {
 		MaxWidth:      ov.cfg.MaxWidth,
 		MinHeight:     ov.cfg.MinHeight,
 		MaxHeight:     ov.cfg.MaxHeight,
-		IDFocus:       ov.cfg.IDFocus,
+		Focusable:     ov.cfg.Focusable,
 		InitialCenter: ov.cfg.InitialCenter,
 		InitialZoom:   ov.cfg.InitialZoom,
 		Source:        ov.cfg.Source,

@@ -55,7 +55,7 @@ func view(w *gui.Window) gui.View {
 			toolbar(),
 			mapview.Map(mapview.Cfg{
 				ID:            mapID,
-				IDFocus:       1,
+				Focusable:     true,
 				Sizing:        gui.FillFill,
 				InitialCenter: cities[0].Center,
 				InitialZoom:   cities[0].Zoom,

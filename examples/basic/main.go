@@ -36,7 +36,7 @@ func main() {
 func view(w *gui.Window) gui.View {
 	return mapview.FullWindow(w, mapview.Map(mapview.Cfg{
 		ID:            "map",
-		IDFocus:       1,
+		Focusable:     true,
 		Sizing:        gui.FillFill,
 		InitialCenter: projection.LatLng{Lat: 47.6062, Lng: -122.3321},
 		InitialZoom:   11,

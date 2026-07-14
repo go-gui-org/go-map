@@ -32,8 +32,9 @@ type Cfg struct {
 	MinHeight float32
 	MaxHeight float32
 
-	// Focus (tab-order index; zero means not focusable)
-	IDFocus uint32
+	// Focusable opts the map into keyboard focus. Tab order follows
+	// layout order; focus identity is Cfg.ID.
+	Focusable bool
 
 	// Initial viewport (seeds first-frame state only; ignored after)
 	InitialCenter projection.LatLng
@@ -307,7 +308,7 @@ func (mv *mapView) GenerateLayout(w *gui.Window) gui.Layout {
 		MaxWidth:        c.MaxWidth,
 		MinHeight:       c.MinHeight,
 		MaxHeight:       c.MaxHeight,
-		IDFocus:         c.IDFocus,
+		Focusable:       c.Focusable,
 		Color:           c.Background,
 		Clip:            true,
 		OnDraw:          onDraw,
