@@ -33,11 +33,10 @@ type LegendCfg struct {
 	MinHeight float32
 	MaxHeight float32
 
-	// IDFocusBase, when > 0, allocates sequential focus IDs to rows
-	// starting from this value in layer-insertion order. 0 leaves
-	// rows non-focusable. Consumers managing a global focus order
-	// reserve a contiguous range and pass the first entry here.
-	IDFocusBase uint32
+	// Focusable, when true, makes each row's toggle a keyboard tab
+	// stop. Row focus identity derives from the legend ID and the
+	// layer ID; tab order follows layer-insertion order.
+	Focusable bool
 
 	// Layout
 	Padding gui.Opt[gui.Padding]
@@ -92,20 +91,21 @@ func buildLegend(w *gui.Window, c LegendCfg) gui.View {
 			Hero: true,
 		}))
 	}
-	row := uint32(0)
 	bm.Range(func(layerID string, l Layer) bool {
 		if l.Name == "" {
 			return true
 		}
-		focusID := uint32(0)
-		if c.IDFocusBase > 0 {
-			focusID = c.IDFocusBase + row
+		// Row focus id derives from legend ID + layer ID so it stays
+		// stable across layer add/remove.
+		focusID := ""
+		if c.Focusable {
+			focusID = c.ID + "/" + layerID
 		}
-		row++
 		content = append(content, gui.Toggle(gui.ToggleCfg{
+			ID:              focusID,
 			Label:           l.Name,
 			Selected:        l.Visible,
-			IDFocus:         focusID,
+			Focusable:       c.Focusable,
 			A11YLabel:       legendRowA11YLabel(l),
 			A11YDescription: legendRowA11YDescription(l),
 			OnClick: func(_ *gui.Layout, _ *gui.Event, ww *gui.Window) {

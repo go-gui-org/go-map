@@ -65,11 +65,10 @@ type GalleryCfg struct {
 	MaxHeight float32
 	ThumbSize float32
 
-	// IDFocusBase, when > 0, allocates sequential focus IDs to cards
-	// starting from this value in Entries order. 0 leaves cards non-
-	// focusable. Consumers managing a global focus order reserve a
-	// contiguous range and pass the first entry here.
-	IDFocusBase uint32
+	// Focusable, when true, makes each card a keyboard tab stop. Card
+	// focus identity derives from the gallery ID and the entry's
+	// LayerID; tab order follows Entries order.
+	Focusable bool
 
 	// Layout
 	Padding gui.Opt[gui.Padding]
@@ -139,17 +138,17 @@ func buildGallery(w *gui.Window, c GalleryCfg) gui.View {
 	}
 
 	cards := make([]gui.View, 0, len(c.Entries))
-	idx := uint32(0)
 	for _, e := range c.Entries {
 		if e.LayerID == "" || !bm.Contains(e.LayerID) {
 			continue
 		}
 		selected := currentBase.LayerID == e.LayerID
-		focusID := uint32(0)
-		if c.IDFocusBase > 0 {
-			focusID = c.IDFocusBase + idx
+		// Card focus id derives from gallery ID + layer ID so it stays
+		// stable when entries are filtered or reordered.
+		focusID := ""
+		if c.Focusable {
+			focusID = c.ID + "/" + e.LayerID
 		}
-		idx++
 		cards = append(cards, galleryCard(e, thumb, selected, focusID, c.MapID))
 	}
 
@@ -197,7 +196,7 @@ func buildGallery(w *gui.Window, c GalleryCfg) gui.View {
 // backend rendering of a zero-value Color is not defined to skip the
 // draw.
 func galleryCard(
-	e GalleryEntry, thumb float32, selected bool, focusID uint32,
+	e GalleryEntry, thumb float32, selected bool, focusID string,
 	mapID string,
 ) gui.View {
 	state := gui.AccessStateNone
@@ -206,7 +205,8 @@ func galleryCard(
 	}
 	inset := galleryBorderWidth
 	cfg := gui.ContainerCfg{
-		IDFocus:         focusID,
+		ID:              focusID,
+		Focusable:       focusID != "",
 		A11YRole:        gui.AccessRoleRadioButton,
 		A11YState:       state,
 		A11YLabel:       galleryCardA11YLabel(e.Label, selected),

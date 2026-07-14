@@ -103,7 +103,7 @@ func viewWith(osmSrc tile.Source, waySrc tile.Source) func(*gui.Window) gui.View
 			Content: []gui.View{
 				mapview.Map(mapview.Cfg{
 					ID:            mapID,
-					IDFocus:       1,
+					Focusable:     true,
 					Sizing:        gui.FixedFill,
 					Width:         mapW,
 					InitialCenter: initCenter,
@@ -125,12 +125,12 @@ func sidebar(entries []mapview.GalleryEntry) gui.View {
 		Spacing: gui.Some[float32](8),
 		Content: []gui.View{
 			mapview.Gallery(mapview.GalleryCfg{
-				ID:          galleryID,
-				MapID:       mapID,
-				Title:       "Base map",
-				Entries:     entries,
-				Sizing:      gui.FillFit,
-				IDFocusBase: 2,
+				ID:        galleryID,
+				MapID:     mapID,
+				Title:     "Base map",
+				Entries:   entries,
+				Sizing:    gui.FillFit,
+				Focusable: true,
 			}),
 			gui.Text(gui.TextCfg{
 				Mode: gui.TextModeWrap,

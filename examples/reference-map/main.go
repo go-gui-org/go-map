@@ -60,7 +60,7 @@ func view(w *gui.Window) gui.View {
 		Content: []gui.View{
 			mapview.Map(mapview.Cfg{
 				ID:            detailID,
-				IDFocus:       1,
+				Focusable:     true,
 				Sizing:        gui.FillFill,
 				InitialCenter: initCenter,
 				InitialZoom:   initZoom,
@@ -83,7 +83,7 @@ func sidebar() gui.View {
 			mapview.Overview(mapview.OverviewCfg{
 				ID:            overviewID,
 				MapID:         detailID,
-				IDFocus:       2,
+				Focusable:     true,
 				Sizing:        gui.FillFixed,
 				Height:        float32(overviewH),
 				InitialCenter: initCenter,
