@@ -27,7 +27,7 @@ func TestFullWindow_WrapsChild(t *testing.T) {
 func TestFullWindow_GenerateLayoutPropagatesChild(t *testing.T) {
 	w := &gui.Window{}
 	child := gui.Text(gui.TextCfg{Text: "sentinel"})
-	root := layoutRecursive(FullWindow(w, child), w)
+	root := gui.GenerateViewLayout(FullWindow(w, child), w)
 	if got := len(root.Children); got != 1 {
 		t.Errorf("Children = %d, want 1", got)
 	}
