@@ -115,9 +115,9 @@ func TestGallery_RendersCardPerRegisteredEntry(t *testing.T) {
 }
 
 // TestGallery_GenerateLayoutPropagatesChildren guards against the same
-// regression Legend hit: a View that returns buildX's bare Column
-// GenerateLayout drops all children because Content() is nil. Only
-// exercising through gui.GenerateViewLayout catches the omission.
+// regression Legend hit: a View that returns buildX's bare
+// GenerateLayout drops all children. Exercising through
+// gui.GenerateViewLayout, which walks Content(), catches the omission.
 func TestGallery_GenerateLayoutPropagatesChildren(t *testing.T) {
 	w := &gui.Window{}
 	AddLayer(w, "m", Layer{

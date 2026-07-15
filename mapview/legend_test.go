@@ -117,10 +117,9 @@ func TestLegend_InsertionOrderPreserved(t *testing.T) {
 
 // TestLegend_GenerateLayoutPropagatesChildren guards against a
 // regression where legendView.GenerateLayout returned only the inner
-// Column's bare shape — go-gui's GenerateViewLayout then skipped the
-// children because Content() is nil, producing an empty sidebar at
-// runtime while buildLegend unit tests still passed. Exercising the
-// widget through the real view pipeline is the only place this surfaces.
+// Column's bare shape. Exercising the widget through
+// gui.GenerateViewLayout, which walks Content(), catches missing
+// children that buildLegend unit tests would not surface.
 func TestLegend_GenerateLayoutPropagatesChildren(t *testing.T) {
 	w := &gui.Window{}
 	AddLayer(w, "m", Layer{

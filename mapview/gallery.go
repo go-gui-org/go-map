@@ -94,10 +94,8 @@ const galleryBorderWidth float32 = 2
 
 // galleryView is the custom View returned by Gallery. Same shape as
 // legendView: nil Content + GenerateLayout that re-reads state each
-// frame. layoutRecursive recurses into the Column children so
-// cards (and their Image / Text subtrees) layout correctly —
-// returning buildGallery's bare Column.GenerateLayout
-// would drop children for the same reason it did in Legend.
+// frame. gui.GenerateViewLayout recurses into Column children so
+// cards (and their Image / Text subtrees) layout correctly.
 type galleryView struct {
 	cfg GalleryCfg
 }
@@ -105,7 +103,7 @@ type galleryView struct {
 func (*galleryView) Content() []gui.View { return nil }
 
 func (gv *galleryView) GenerateLayout(w *gui.Window) gui.Layout {
-	return layoutRecursive(buildGallery(w, gv.cfg), w)
+	return gui.GenerateViewLayout(buildGallery(w, gv.cfg), w)
 }
 
 // Gallery returns a View rendering a base-layer switcher keyed to
