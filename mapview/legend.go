@@ -103,7 +103,7 @@ func buildLegend(w *gui.Window, c LegendCfg) gui.View {
 			ID:              focusID,
 			Label:           l.Name,
 			Selected:        l.Visible,
-			Focusable:       c.Focusable,
+			FocusDisabled:   !c.Focusable,
 			A11YLabel:       legendRowA11YLabel(l),
 			A11YDescription: legendRowA11YDescription(l),
 			OnClick: func(_ *gui.Layout, _ *gui.Event, ww *gui.Window) {
