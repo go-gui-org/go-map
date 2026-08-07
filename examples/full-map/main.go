@@ -126,8 +126,8 @@ func toolbar() gui.View {
 		buttons = append(buttons, gui.Button(gui.ButtonCfg{
 			Padding: gui.Some(gui.Padding{Left: 10, Right: 10, Top: 4, Bottom: 4}),
 			Content: []gui.View{gui.Text(gui.TextCfg{Text: c.Name})},
-			OnClick: func(_ *gui.Layout, _ *gui.Event, w *gui.Window) {
-				mapview.SetView(w, mapID, c.Center, c.Zoom)
+			OnClick: func(ctx gui.EventCtx) {
+				mapview.SetView(ctx.Window, mapID, c.Center, c.Zoom)
 			},
 		}))
 	}
@@ -139,13 +139,13 @@ func toolbar() gui.View {
 	buttons = append(buttons, gui.Button(gui.ButtonCfg{
 		Padding: gui.Some(gui.Padding{Left: 10, Right: 10, Top: 4, Bottom: 4}),
 		Content: []gui.View{gui.Text(gui.TextCfg{Text: "Fit all"})},
-		OnClick: func(_ *gui.Layout, _ *gui.Event, w *gui.Window) {
+		OnClick: func(ctx gui.EventCtx) {
 			b := projection.BoundsOf(
 				cities[0].Center, cities[1].Center,
 				cities[2].Center, cities[3].Center,
 			)
-			ww, wh := w.WindowSize()
-			mapview.FitBounds(w, mapID, b, 40,
+			ww, wh := ctx.Window.WindowSize()
+			mapview.FitBounds(ctx.Window, mapID, b, 40,
 				float32(ww), float32(wh)-toolbarHeight)
 		},
 	}))

@@ -5,24 +5,24 @@ import (
 	"github.com/go-gui-org/go-map/projection"
 )
 
-func onKeyDown(c Cfg, seed MapState) func(*gui.Layout, *gui.Event, *gui.Window) {
+func onKeyDown(c Cfg, seed MapState) func(gui.EventCtx) {
 	id := c.ID
-	return func(_ *gui.Layout, e *gui.Event, w *gui.Window) {
-		s := gui.StateReadOr[string, MapState](w, nsState, id, seed)
-		if handleFocusKey(c, &s, e, w) {
-			e.IsHandled = true
+	return func(ctx gui.EventCtx) {
+		s := gui.StateReadOr[string, MapState](ctx.Window, nsState, id, seed)
+		if handleFocusKey(c, &s, ctx.Event, ctx.Window) {
+			ctx.Consume()
 			return
 		}
 		step := float64(projection.TileSize) / 2
 		switch {
-		case e.Modifiers.Has(gui.ModShift):
+		case ctx.Event.Modifiers.Has(gui.ModShift):
 			step = float64(projection.TileSize)
-		case e.Modifiers.Has(gui.ModCtrl):
+		case ctx.Event.Modifiers.Has(gui.ModCtrl):
 			step = float64(projection.TileSize) / 4
 		}
 
 		handled := true
-		switch e.KeyCode {
+		switch ctx.Event.KeyCode {
 		case gui.KeyLeft:
 			s.Center = shiftCenter(s, -step, 0)
 		case gui.KeyRight:
@@ -35,7 +35,7 @@ func onKeyDown(c Cfg, seed MapState) func(*gui.Layout, *gui.Event, *gui.Window) 
 			// Integer delta — slice 5a keeps keyboard and wheel on
 			// whole-number steps. clampZoom enforces the ceiling;
 			// baseMaxZoom adds a tighter per-source cap when set.
-			if nz := clampZoom(s.Zoom + 1); nz <= float64(baseMaxZoom(w, id)) {
+			if nz := clampZoom(s.Zoom + 1); nz <= float64(baseMaxZoom(ctx.Window, id)) {
 				s.Zoom = nz
 			}
 		case gui.KeyMinus, gui.KeyKPSubtract:
@@ -50,9 +50,9 @@ func onKeyDown(c Cfg, seed MapState) func(*gui.Layout, *gui.Event, *gui.Window) 
 		if handled {
 			// Keyboard pan / zoom / home all preempt any in-flight
 			// fling — explicit user input trumps momentum.
-			cancelKineticPan(w, id)
-			nsWrite(w, nsState, id, s)
-			e.IsHandled = true
+			cancelKineticPan(ctx.Window, id)
+			nsWrite(ctx.Window, nsState, id, s)
+			ctx.Consume()
 		}
 	}
 }

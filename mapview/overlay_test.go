@@ -188,7 +188,7 @@ func TestPanDragEnd_MarkerOnClick_WithoutOnPOISelect(t *testing.T) {
 		CanvasW: canvasW, CanvasH: canvasH,
 	})
 	up := &gui.Event{MouseX: cx, MouseY: cy}
-	panDragEnd(Cfg{ID: id})(nil, up, w)
+	panDragEnd(Cfg{ID: id})(gui.EventCtx{Event: up, Window: w})
 	if !fired {
 		t.Error("Marker.OnClick did not fire when OnPOISelect was nil")
 	}
@@ -209,7 +209,7 @@ func TestPanDragEnd_DragSuppressesClick(t *testing.T) {
 		ID:      id,
 		OnClick: func(*gui.Window, projection.LatLng) { clicked = true },
 	}
-	panDragEnd(c)(nil, nil, w)
+	panDragEnd(c)(gui.EventCtx{Window: w})
 	if clicked {
 		t.Error("OnClick fired despite Moved=true")
 	}
@@ -698,7 +698,7 @@ func TestPanDragMove_SwallowsBelowThreshold(t *testing.T) {
 	})
 	// 2 px hypotenuse — below the 4 px threshold.
 	e := &gui.Event{MouseX: 2, MouseY: 2}
-	panDragMove(id)(nil, e, w)
+	panDragMove(id)(gui.EventCtx{Event: e, Window: w})
 
 	if p := nsRead[panState](w, nsPan, id); p.Moved {
 		t.Error("Moved flipped on sub-threshold motion")
@@ -721,7 +721,7 @@ func TestPanDragMove_FlipsMovedAtThreshold(t *testing.T) {
 	})
 	// 10 px east — comfortably past threshold.
 	e := &gui.Event{MouseX: 10, MouseY: 0}
-	panDragMove(id)(nil, e, w)
+	panDragMove(id)(gui.EventCtx{Event: e, Window: w})
 
 	if p := nsRead[panState](w, nsPan, id); !p.Moved {
 		t.Error("Moved did not flip on above-threshold motion")
@@ -757,7 +757,7 @@ func TestPanDragEnd_OnClickDeliversLatLng(t *testing.T) {
 		},
 	}
 	up := &gui.Event{MouseX: cx, MouseY: cy}
-	panDragEnd(c)(nil, up, w)
+	panDragEnd(c)(gui.EventCtx{Event: up, Window: w})
 	if !fired {
 		t.Fatal("OnClick did not fire")
 	}
@@ -799,7 +799,7 @@ func TestPanDragEnd_TopmostOverlayWins(t *testing.T) {
 		StartX: cx, StartY: cy, LocalX: cx, LocalY: cy,
 		CanvasW: canvasW, CanvasH: canvasH,
 	})
-	panDragEnd(c)(nil, &gui.Event{MouseX: cx, MouseY: cy}, w)
+	panDragEnd(c)(gui.EventCtx{Event: &gui.Event{MouseX: cx, MouseY: cy}, Window: w})
 
 	if selected != top {
 		t.Errorf("selected = %v, want topmost %v", selected, top)
@@ -826,7 +826,7 @@ func TestPanDragEnd_MarkerClickOpensInfoWindow(t *testing.T) {
 		StartX: cx, StartY: cy, LocalX: cx, LocalY: cy,
 		CanvasW: canvasW, CanvasH: canvasH,
 	})
-	panDragEnd(Cfg{ID: id})(nil, &gui.Event{MouseX: cx, MouseY: cy}, w)
+	panDragEnd(Cfg{ID: id})(gui.EventCtx{Event: &gui.Event{MouseX: cx, MouseY: cy}, Window: w})
 
 	got, _ := Snapshot(w, id)
 	if got.FocusedOverlayID != "titled" {
@@ -873,7 +873,7 @@ func TestPanDragEnd_MarkerClickResetsPopupFocus(t *testing.T) {
 		StartX: cx, StartY: cy, LocalX: cx, LocalY: cy,
 		CanvasW: canvasW, CanvasH: canvasH,
 	})
-	panDragEnd(Cfg{ID: id})(nil, &gui.Event{MouseX: cx, MouseY: cy}, w)
+	panDragEnd(Cfg{ID: id})(gui.EventCtx{Event: &gui.Event{MouseX: cx, MouseY: cy}, Window: w})
 
 	got, _ := Snapshot(w, id)
 	if got.FocusedOverlayID != "second" {
@@ -901,7 +901,7 @@ func TestPanDragEnd_TitlelessClickKeepsInfoClosed(t *testing.T) {
 		StartX: cx, StartY: cy, LocalX: cx, LocalY: cy,
 		CanvasW: canvasW, CanvasH: canvasH,
 	})
-	panDragEnd(Cfg{ID: id})(nil, &gui.Event{MouseX: cx, MouseY: cy}, w)
+	panDragEnd(Cfg{ID: id})(gui.EventCtx{Event: &gui.Event{MouseX: cx, MouseY: cy}, Window: w})
 
 	got, _ := Snapshot(w, id)
 	if got.FocusedOverlayID != "plain" {
@@ -926,9 +926,12 @@ func TestOnMouseDown_PopupRectConsumesClick(t *testing.T) {
 		X: 30, Y: 30, W: 100, H: 40, Valid: true,
 	})
 	e := &gui.Event{MouseX: 50, MouseY: 50}
-	onMouseDown(Cfg{ID: id}, seed)(&gui.Layout{
-		Shape: &gui.Shape{Width: 400, Height: 300},
-	}, e, w)
+	onMouseDown(Cfg{ID: id}, seed)(gui.EventCtx{
+		Layout: &gui.Layout{
+			Shape: &gui.Shape{Width: 400, Height: 300},
+		},
+		Event: e, Window: w,
+	})
 	if !e.IsHandled {
 		t.Fatal("popup hit must mark event handled")
 	}
@@ -955,9 +958,12 @@ func TestOnMouseDown_CloseButtonDismissesPopup(t *testing.T) {
 		MarkerID: "titled", Valid: true,
 	})
 	e := &gui.Event{MouseX: 115, MouseY: 40}
-	onMouseDown(Cfg{ID: id}, seed)(&gui.Layout{
-		Shape: &gui.Shape{Width: 400, Height: 300},
-	}, e, w)
+	onMouseDown(Cfg{ID: id}, seed)(gui.EventCtx{
+		Layout: &gui.Layout{
+			Shape: &gui.Shape{Width: 400, Height: 300},
+		},
+		Event: e, Window: w,
+	})
 	if !e.IsHandled {
 		t.Fatal("close-button press must mark event handled")
 	}
@@ -1006,9 +1012,12 @@ func TestOnMouseDown_ActionButtonFiresCallbackAndCloses(t *testing.T) {
 		MarkerID: "titled", Valid: true,
 	})
 	e := &gui.Event{MouseX: 50, MouseY: 70}
-	onMouseDown(Cfg{ID: id}, seed)(&gui.Layout{
-		Shape: &gui.Shape{Width: 400, Height: 300},
-	}, e, w)
+	onMouseDown(Cfg{ID: id}, seed)(gui.EventCtx{
+		Layout: &gui.Layout{
+			Shape: &gui.Shape{Width: 400, Height: 300},
+		},
+		Event: e, Window: w,
+	})
 	if !e.IsHandled {
 		t.Fatal("action press must mark event handled")
 	}
@@ -1039,9 +1048,12 @@ func TestOnMouseDown_ActionDispatchTolerates_StaleMarker(t *testing.T) {
 		MarkerID: "ghost", Valid: true,
 	})
 	e := &gui.Event{MouseX: 50, MouseY: 70}
-	onMouseDown(Cfg{ID: id}, seed)(&gui.Layout{
-		Shape: &gui.Shape{Width: 400, Height: 300},
-	}, e, w)
+	onMouseDown(Cfg{ID: id}, seed)(gui.EventCtx{
+		Layout: &gui.Layout{
+			Shape: &gui.Shape{Width: 400, Height: 300},
+		},
+		Event: e, Window: w,
+	})
 	if !e.IsHandled {
 		t.Fatal("stale action press must still consume event")
 	}
@@ -1075,7 +1087,7 @@ func TestPanDragEnd_ClickOutsideDismissesPopup(t *testing.T) {
 		StartX: cx, StartY: cy, LocalX: cx, LocalY: cy,
 		CanvasW: canvasW, CanvasH: canvasH,
 	})
-	panDragEnd(Cfg{ID: id})(nil, &gui.Event{MouseX: cx, MouseY: cy}, w)
+	panDragEnd(Cfg{ID: id})(gui.EventCtx{Event: &gui.Event{MouseX: cx, MouseY: cy}, Window: w})
 
 	got, _ := Snapshot(w, id)
 	if got.InfoOpen {
@@ -1162,7 +1174,7 @@ func TestPanDragEnd_PolylineClickLeavesPopupOpen(t *testing.T) {
 		ID:          id,
 		OnPOISelect: func(_ *gui.Window, o Overlay) { selected = o },
 	}
-	panDragEnd(c)(nil, &gui.Event{MouseX: cx, MouseY: cy}, w)
+	panDragEnd(c)(gui.EventCtx{Event: &gui.Event{MouseX: cx, MouseY: cy}, Window: w})
 
 	if _, ok := selected.(*Polyline); !ok {
 		t.Fatalf("polyline must be the hit target, got %T", selected)
@@ -1223,7 +1235,7 @@ func TestPanDragMove_NonFiniteMouseXYIgnored(t *testing.T) {
 			StartCtr: seed.Center, StartZoom: seed.Zoom,
 		})
 		e := &gui.Event{MouseX: coords[0], MouseY: coords[1]}
-		panDragMove(id)(nil, e, w)
+		panDragMove(id)(gui.EventCtx{Event: e, Window: w})
 
 		p := nsRead[panState](w, nsPan, id)
 		if p.Moved {
@@ -1249,7 +1261,7 @@ func TestOnMouseMove_WritesHoverState(t *testing.T) {
 	w := &gui.Window{}
 	id := "m"
 	e := &gui.Event{MouseX: 123, MouseY: 456}
-	onMouseMove(id)(nil, e, w)
+	onMouseMove(id)(gui.EventCtx{Event: e, Window: w})
 
 	h := nsRead[hoverState](w, nsHover, id)
 	if !h.Valid || h.X != 123 || h.Y != 456 {
@@ -1271,7 +1283,7 @@ func TestOnMouseMove_NonFiniteMouseXYSkipsHoverWrite(t *testing.T) {
 		w := &gui.Window{}
 		id := "m"
 		nsWrite(w, nsHover, id, hoverState{X: 1, Y: 2, Valid: true})
-		onMouseMove(id)(nil, &gui.Event{MouseX: coords[0], MouseY: coords[1]}, w)
+		onMouseMove(id)(gui.EventCtx{Event: &gui.Event{MouseX: coords[0], MouseY: coords[1]}, Window: w})
 
 		h := nsRead[hoverState](w, nsHover, id)
 		if !h.Valid || h.X != 1 || h.Y != 2 {
@@ -1286,7 +1298,7 @@ func TestOnMouseLeave_ClearsHoverState(t *testing.T) {
 	w := &gui.Window{}
 	id := "m"
 	nsWrite(w, nsHover, id, hoverState{X: 50, Y: 100, Valid: true})
-	onMouseLeave(id)(nil, nil, w)
+	onMouseLeave(id)(gui.EventCtx{Window: w})
 
 	h := nsRead[hoverState](w, nsHover, id)
 	if h.Valid || h.X != 0 || h.Y != 0 {

@@ -16,49 +16,49 @@ const dragThresholdPx float32 = 4
 // subsequent mouse-move / mouse-up events. The press becomes a pan
 // only once the cursor leaves the drag-threshold radius; shorter
 // presses collapse into a click at mouse-up time.
-func onMouseDown(c Cfg, seed MapState) func(*gui.Layout, *gui.Event, *gui.Window) {
+func onMouseDown(c Cfg, seed MapState) func(gui.EventCtx) {
 	id := c.ID
-	return func(l *gui.Layout, e *gui.Event, w *gui.Window) {
+	return func(ctx gui.EventCtx) {
 		// Popup-rect hit-test runs first so a click on the InfoWindow
 		// body neither starts a drag-pan nor falls through to an
 		// overlay beneath the popup. No-op when no popup is drawn.
-		if handlePopupClick(w, id, e) {
+		if handlePopupClick(ctx.Window, id, ctx.Event) {
 			return
 		}
-		if homeButtonHit(l.Shape.Width, e.MouseX, e.MouseY) {
-			nsWrite(w, nsState, id, seed)
-			e.IsHandled = true
+		if homeButtonHit(ctx.Layout.Shape.Width, ctx.Event.MouseX, ctx.Event.MouseY) {
+			nsWrite(ctx.Window, nsState, id, seed)
+			ctx.Consume()
 			return
 		}
 		// A new press cancels any in-flight kinetic fling — user is
 		// taking over. Must precede the nsPan write so a zero-
 		// velocity drag does not inherit residual fling state.
-		cancelKineticPan(w, id)
-		s := nsRead[MapState](w, nsState, id)
+		cancelKineticPan(ctx.Window, id)
+		s := nsRead[MapState](ctx.Window, nsState, id)
 		// OnClick delivers widget-local coords; MouseLock callbacks
 		// deliver absolute coords. Storing both, plus canvas size,
 		// lets panDragEnd resolve the release LatLng without a second
 		// event dispatch.
 		now := time.Now()
-		nsWrite(w, nsPan, id, panState{
+		nsWrite(ctx.Window, nsPan, id, panState{
 			Active:    true,
-			StartX:    e.MouseX + l.Shape.X,
-			StartY:    e.MouseY + l.Shape.Y,
-			LocalX:    e.MouseX,
-			LocalY:    e.MouseY,
+			StartX:    ctx.Event.MouseX + ctx.Layout.Shape.X,
+			StartY:    ctx.Event.MouseY + ctx.Layout.Shape.Y,
+			LocalX:    ctx.Event.MouseX,
+			LocalY:    ctx.Event.MouseY,
 			StartCtr:  s.Center,
 			StartZoom: s.Zoom,
-			CanvasW:   l.Shape.Width,
-			CanvasH:   l.Shape.Height,
-			LastX:     e.MouseX,
-			LastY:     e.MouseY,
+			CanvasW:   ctx.Layout.Shape.Width,
+			CanvasH:   ctx.Layout.Shape.Height,
+			LastX:     ctx.Event.MouseX,
+			LastY:     ctx.Event.MouseY,
 			LastT:     now,
 		})
-		w.MouseLock(gui.MouseLockCfg{
+		ctx.Window.MouseLock(gui.MouseLockCfg{
 			MouseMove: panDragMove(id),
 			MouseUp:   panDragEnd(c),
 		})
-		e.IsHandled = true
+		ctx.Consume()
 	}
 }
 
@@ -67,37 +67,37 @@ func homeButtonHit(canvasW, mx, my float32) bool {
 	return mx >= x && mx < x+w && my >= y && my < y+h
 }
 
-func panDragMove(id string) func(*gui.Layout, *gui.Event, *gui.Window) {
-	return func(_ *gui.Layout, e *gui.Event, w *gui.Window) {
-		p := nsRead[panState](w, nsPan, id)
+func panDragMove(id string) func(gui.EventCtx) {
+	return func(ctx gui.EventCtx) {
+		p := nsRead[panState](ctx.Window, nsPan, id)
 		if !p.Active {
 			return
 		}
 		// Non-finite coords defeat the threshold check (NaN < x is always
 		// false) and would inject NaN into the kinetic velocity EMA.
-		if !mousePositionFinite(e) {
-			e.IsHandled = true
+		if !mousePositionFinite(ctx.Event) {
+			ctx.Consume()
 			return
 		}
-		dx := p.StartX - e.MouseX
-		dy := p.StartY - e.MouseY
+		dx := p.StartX - ctx.Event.MouseX
+		dy := p.StartY - ctx.Event.MouseY
 		if !p.Moved {
 			// Swallow intra-threshold movement entirely. Prevents the
 			// map from jittering when the user shakes the pointer mid-
 			// click, and keeps the drag-vs-click decision crisp.
 			if dx*dx+dy*dy < dragThresholdPx*dragThresholdPx {
-				e.IsHandled = true
+				ctx.Consume()
 				return
 			}
 			p.Moved = true
-			nsWrite(w, nsPan, id, p)
+			nsWrite(ctx.Window, nsPan, id, p)
 		}
 		// Sample kinetic-pan velocity before the nsWrite that moves
 		// center — the EMA math needs the prior LastX/Y, and the
 		// subsequent nsPan write persists both the new sample and
 		// the updated EMA.
-		sampleKineticVelocity(&p, e.MouseX, e.MouseY, time.Now())
-		nsWrite(w, nsPan, id, p)
+		sampleKineticVelocity(&p, ctx.Event.MouseX, ctx.Event.MouseY, time.Now())
+		nsWrite(ctx.Window, nsPan, id, p)
 
 		startPt := projection.ProjectF(p.StartCtr, p.StartZoom)
 		newCtr := projection.UnprojectF(projection.Point{
@@ -105,10 +105,10 @@ func panDragMove(id string) func(*gui.Layout, *gui.Event, *gui.Window) {
 			Y: startPt.Y + float64(dy),
 		}, p.StartZoom)
 
-		s := nsRead[MapState](w, nsState, id)
+		s := nsRead[MapState](ctx.Window, nsState, id)
 		s.Center = newCtr.Clamp()
-		nsWrite(w, nsState, id, s)
-		e.IsHandled = true
+		nsWrite(ctx.Window, nsState, id, s)
+		ctx.Consume()
 	}
 }
 
@@ -119,32 +119,32 @@ func panDragMove(id string) func(*gui.Layout, *gui.Event, *gui.Window) {
 // absolute window coords) converted back into widget-local coords via
 // panState.StartX/Y; within the drag threshold this agrees with the
 // press point to within a few pixels.
-func panDragEnd(c Cfg) func(*gui.Layout, *gui.Event, *gui.Window) {
+func panDragEnd(c Cfg) func(gui.EventCtx) {
 	id := c.ID
-	return func(_ *gui.Layout, e *gui.Event, w *gui.Window) {
-		p := nsRead[panState](w, nsPan, id)
+	return func(ctx gui.EventCtx) {
+		p := nsRead[panState](ctx.Window, nsPan, id)
 		wasClick := p.Active && !p.Moved
 		// Try launching a kinetic fling before the pan state clears
 		// — spawnKineticPan reads p.VelX/VelY/LastT, so the pre-
 		// reset snapshot is what it needs to decide.
 		if !wasClick {
-			spawnKineticPan(w, id, p, time.Now())
+			spawnKineticPan(ctx.Window, id, p, time.Now())
 		}
 		// Clear the entire panState — the drag is done, so no field
 		// is meaningful and stale StartCtr / LastT entries would
 		// survive in the registry otherwise (cosmetic, but a later
 		// reader would have to reason about "is this from the
 		// current drag or the last one?").
-		nsWrite(w, nsPan, id, panState{})
-		w.MouseUnlock()
+		nsWrite(ctx.Window, nsPan, id, panState{})
+		ctx.Window.MouseUnlock()
 		if !wasClick {
 			return
 		}
 		// Up-event coords are absolute (MouseLock delivery convention);
 		// shift into widget-local space using the down-event offset.
-		upX := e.MouseX - (p.StartX - p.LocalX)
-		upY := e.MouseY - (p.StartY - p.LocalY)
-		s := nsRead[MapState](w, nsState, id)
+		upX := ctx.Event.MouseX - (p.StartX - p.LocalX)
+		upY := ctx.Event.MouseY - (p.StartY - p.LocalY)
+		s := nsRead[MapState](ctx.Window, nsState, id)
 		vp := computeViewport(p.CanvasW, p.CanvasH, s)
 		// Hit-test once per click. Walking Range forward and keeping
 		// the last match makes the topmost (last-drawn) overlay win
@@ -153,7 +153,7 @@ func panDragEnd(c Cfg) func(*gui.Layout, *gui.Event, *gui.Window) {
 		// gate so a Marker.OnClick still fires when the author elected
 		// not to set the map-level selector.
 		var hit Overlay
-		readOverlays(w, id).Range(func(_ string, o Overlay) bool {
+		readOverlays(ctx.Window, id).Range(func(_ string, o Overlay) bool {
 			if o.HitTest(vp, upX, upY) {
 				hit = o
 			}
@@ -187,40 +187,40 @@ func panDragEnd(c Cfg) func(*gui.Layout, *gui.Event, *gui.Window) {
 				s.FocusedOverlayID = m.MarkerID
 				s.InfoOpen = wantOpen
 				s.InfoFocusIndex = wantIdx
-				nsWrite(w, nsState, id, s)
+				nsWrite(ctx.Window, nsState, id, s)
 			}
 		} else if hit == nil && s.InfoOpen {
 			s.InfoOpen = false
 			s.InfoFocusIndex = 0
-			nsWrite(w, nsState, id, s)
+			nsWrite(ctx.Window, nsState, id, s)
 		}
 		if hit != nil && c.OnPOISelect != nil {
-			c.OnPOISelect(w, hit)
+			c.OnPOISelect(ctx.Window, hit)
 		}
 		if m, ok := hit.(*Marker); ok && m.OnClick != nil {
-			m.OnClick(w)
+			m.OnClick(ctx.Window)
 		}
 		if c.OnClick != nil {
-			c.OnClick(w, vp.screenToLatLng(upX, upY))
+			c.OnClick(ctx.Window, vp.screenToLatLng(upX, upY))
 		}
 	}
 }
 
-func onMouseMove(id string) func(*gui.Layout, *gui.Event, *gui.Window) {
-	return func(_ *gui.Layout, e *gui.Event, w *gui.Window) {
+func onMouseMove(id string) func(gui.EventCtx) {
+	return func(ctx gui.EventCtx) {
 		// Reject non-finite coords — the HUD reads hover state directly and
 		// would render "NaN°N" if a garbage sample were stored.
-		if !mousePositionFinite(e) {
+		if !mousePositionFinite(ctx.Event) {
 			return
 		}
-		nsWrite(w, nsHover, id, hoverState{X: e.MouseX, Y: e.MouseY, Valid: true})
+		nsWrite(ctx.Window, nsHover, id, hoverState{X: ctx.Event.MouseX, Y: ctx.Event.MouseY, Valid: true})
 	}
 }
 
 // onMouseLeave clears the hover so the coord readout falls back to
 // the map center, matching the convention "no cursor → center".
-func onMouseLeave(id string) func(*gui.Layout, *gui.Event, *gui.Window) {
-	return func(_ *gui.Layout, _ *gui.Event, w *gui.Window) {
-		nsWrite(w, nsHover, id, hoverState{})
+func onMouseLeave(id string) func(gui.EventCtx) {
+	return func(ctx gui.EventCtx) {
+		nsWrite(ctx.Window, nsHover, id, hoverState{})
 	}
 }
