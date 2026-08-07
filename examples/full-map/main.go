@@ -124,6 +124,10 @@ func toolbar() gui.View {
 	for _, c := range cities {
 		c := c
 		buttons = append(buttons, gui.Button(gui.ButtonCfg{
+			// Keyed by city: these are built in a loop, so a constant
+			// ID would collapse every button onto one tab stop and one
+			// state slot.
+			ID:      "city:" + c.Name,
 			Padding: gui.Some(gui.Padding{Left: 10, Right: 10, Top: 4, Bottom: 4}),
 			Content: []gui.View{gui.Text(gui.TextCfg{Text: c.Name})},
 			OnClick: func(ctx gui.EventCtx) {
@@ -137,6 +141,7 @@ func toolbar() gui.View {
 	// (HUD shows e.g. "z2.3") and tiles render at the fractional
 	// scale without seams.
 	buttons = append(buttons, gui.Button(gui.ButtonCfg{
+		ID:      "fit_all",
 		Padding: gui.Some(gui.Padding{Left: 10, Right: 10, Top: 4, Bottom: 4}),
 		Content: []gui.View{gui.Text(gui.TextCfg{Text: "Fit all"})},
 		OnClick: func(ctx gui.EventCtx) {

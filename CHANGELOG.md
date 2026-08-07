@@ -7,6 +7,13 @@ All notable changes are documented here. Format follows
 
 ### Changed
 
+- **Bump go-gui v0.52.0 → v0.53.0.** go-gui's nine input factories now panic on
+  an empty `Cfg.ID`: focus traversal and per-widget state are keyed by it, so a
+  control without one renders and clicks but is unreachable by keyboard. No
+  library code is affected — the two forced edits are both toolbar buttons in
+  `examples/full-map`. The per-city buttons are keyed `"city:" + c.Name` rather
+  than a constant, because they are built in a loop and a shared ID would
+  collapse them onto one tab stop and one state slot.
 - **BREAKING: event callbacks take a single `gui.EventCtx`.** Bump go-gui
   v0.51.1 → v0.52.0. `(*gui.Layout, *gui.Event, *gui.Window)` becomes
   `func(gui.EventCtx)`.
