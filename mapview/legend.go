@@ -106,8 +106,8 @@ func buildLegend(w *gui.Window, c LegendCfg) gui.View {
 			FocusDisabled:   !c.Focusable,
 			A11YLabel:       legendRowA11YLabel(l),
 			A11YDescription: legendRowA11YDescription(l),
-			OnClick: func(_ *gui.Layout, _ *gui.Event, ww *gui.Window) {
-				toggleLayerVisible(ww, c.MapID, layerID)
+			OnClick: func(ctx gui.EventCtx) {
+				toggleLayerVisible(ctx.Window, c.MapID, layerID)
 			},
 		}))
 		return true

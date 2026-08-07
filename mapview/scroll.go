@@ -16,52 +16,52 @@ import (
 // accumulator, so gain < 1 yields fractional zoom even on notch
 // hardware. Zoom pivots toward the cursor so the LatLng under the
 // cursor stays fixed.
-func onMouseScroll(id string, gain float32) func(*gui.Layout, *gui.Event, *gui.Window) {
-	return func(l *gui.Layout, e *gui.Event, w *gui.Window) {
-		if e.ScrollY == 0 {
+func onMouseScroll(id string, gain float32) func(gui.EventCtx) {
+	return func(ctx gui.EventCtx) {
+		if ctx.Event.ScrollY == 0 {
 			return
 		}
 		// Reject NaN/±Inf scroll deltas before they pollute the
 		// accumulator — once stuck, every future event would yield
 		// NaN+x = NaN and the wheel would silently stop zooming.
-		if !isFiniteF32(e.ScrollY) {
+		if !isFiniteF32(ctx.Event.ScrollY) {
 			return
 		}
 		// Reject non-finite cursor position — zoomToward would forward NaN
 		// through UnprojectF, which returns LatLng{}, jumping center to (0,0).
-		if !mousePositionFinite(e) {
+		if !mousePositionFinite(ctx.Event) {
 			return
 		}
-		acc := nsRead[float32](w, nsScroll, id) + e.ScrollY*gain
+		acc := nsRead[float32](ctx.Window, nsScroll, id) + ctx.Event.ScrollY*gain
 		delta, acc := scrollSteps(acc)
-		nsWrite(w, nsScroll, id, acc)
+		nsWrite(ctx.Window, nsScroll, id, acc)
 		if delta == 0 {
-			e.IsHandled = true
+			ctx.Consume()
 			return
 		}
 
-		s := nsRead[MapState](w, nsState, id)
+		s := nsRead[MapState](ctx.Window, nsState, id)
 		newZoom := clampZoom(s.Zoom + float64(delta))
-		if srcMax := float64(baseMaxZoom(w, id)); newZoom > srcMax {
+		if srcMax := float64(baseMaxZoom(ctx.Window, id)); newZoom > srcMax {
 			newZoom = srcMax
 		}
 		if newZoom == s.Zoom {
-			e.IsHandled = true
+			ctx.Event.IsHandled = true
 			return
 		}
 		// Wheel zoom cancels any in-flight fling — user is
 		// actively changing the view, momentum is no longer wanted.
-		cancelKineticPan(w, id)
+		cancelKineticPan(ctx.Window, id)
 		newCtr := zoomToward(
 			s, newZoom,
-			e.MouseX, e.MouseY,
-			l.Shape.Width, l.Shape.Height,
+			ctx.Event.MouseX, ctx.Event.MouseY,
+			ctx.Layout.Shape.Width, ctx.Layout.Shape.Height,
 		)
 
 		s.Center = newCtr
 		s.Zoom = newZoom
-		nsWrite(w, nsState, id, s)
-		e.IsHandled = true
+		nsWrite(ctx.Window, nsState, id, s)
+		ctx.Consume()
 	}
 }
 

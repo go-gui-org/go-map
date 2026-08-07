@@ -209,8 +209,8 @@ func galleryCard(
 		A11YState:       state,
 		A11YLabel:       galleryCardA11YLabel(e.Label, selected),
 		A11YDescription: galleryCardA11YDescription(selected),
-		OnClick: func(_ *gui.Layout, _ *gui.Event, w *gui.Window) {
-			selectGalleryLayer(w, mapID, e.LayerID)
+		OnClick: func(ctx gui.EventCtx) {
+			selectGalleryLayer(ctx.Window, mapID, e.LayerID)
 		},
 		Content: []gui.View{
 			galleryThumb(e, thumb),
