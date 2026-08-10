@@ -39,7 +39,7 @@ type LegendCfg struct {
 	Focusable bool
 
 	// Layout
-	Padding gui.Opt[gui.Padding]
+	Padding gui.Padding
 	Spacing gui.Opt[float32]
 
 	// Appearance

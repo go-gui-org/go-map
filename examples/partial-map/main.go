@@ -39,7 +39,7 @@ func view(w *gui.Window) gui.View {
 		Width:   float32(ww),
 		Height:  float32(wh),
 		Sizing:  gui.FixedFixed,
-		Padding: gui.Some(gui.Padding{}),
+		Padding: gui.PaddingNone,
 		Content: []gui.View{
 			mapview.Map(mapview.Cfg{
 				ID:            mapID,
@@ -72,7 +72,7 @@ func detailPanel(w *gui.Window) gui.View {
 	return gui.Column(gui.ContainerCfg{
 		Sizing:  gui.FixedFill,
 		Width:   240,
-		Padding: gui.Some(gui.Padding{Left: 12, Right: 12, Top: 12, Bottom: 12}),
+		Padding: gui.NewPadding(12, 12, 12, 12),
 		Spacing: gui.Some[float32](6),
 		Content: body,
 	})

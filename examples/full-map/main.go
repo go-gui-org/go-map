@@ -50,7 +50,7 @@ func view(w *gui.Window) gui.View {
 		Width:   float32(ww),
 		Height:  float32(wh),
 		Sizing:  gui.FixedFixed,
-		Padding: gui.Some(gui.Padding{}),
+		Padding: gui.PaddingNone,
 		Content: []gui.View{
 			toolbar(),
 			mapview.Map(mapview.Cfg{
@@ -128,7 +128,7 @@ func toolbar() gui.View {
 			// ID would collapse every button onto one tab stop and one
 			// state slot.
 			ID:      "city:" + c.Name,
-			Padding: gui.Some(gui.Padding{Left: 10, Right: 10, Top: 4, Bottom: 4}),
+			Padding: gui.NewPadding(4, 10, 4, 10),
 			Content: []gui.View{gui.Text(gui.TextCfg{Text: c.Name})},
 			OnClick: func(ctx gui.EventCtx) {
 				mapview.SetView(ctx.Window, mapID, c.Center, c.Zoom)
@@ -142,7 +142,7 @@ func toolbar() gui.View {
 	// scale without seams.
 	buttons = append(buttons, gui.Button(gui.ButtonCfg{
 		ID:      "fit_all",
-		Padding: gui.Some(gui.Padding{Left: 10, Right: 10, Top: 4, Bottom: 4}),
+		Padding: gui.NewPadding(4, 10, 4, 10),
 		Content: []gui.View{gui.Text(gui.TextCfg{Text: "Fit all"})},
 		OnClick: func(ctx gui.EventCtx) {
 			b := projection.BoundsOf(
@@ -157,7 +157,7 @@ func toolbar() gui.View {
 	return gui.Row(gui.ContainerCfg{
 		Sizing:  gui.FillFixed,
 		Height:  toolbarHeight,
-		Padding: gui.Some(gui.Padding{Left: 6, Right: 6, Top: 4, Bottom: 4}),
+		Padding: gui.NewPadding(4, 6, 4, 6),
 		Spacing: gui.Some[float32](6),
 		Content: buttons,
 	})

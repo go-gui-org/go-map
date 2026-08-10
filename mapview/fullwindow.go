@@ -27,7 +27,7 @@ func FullWindow(w *gui.Window, v gui.View) gui.View {
 		Sizing:  gui.FixedFixed,
 		Width:   float32(ww),
 		Height:  float32(wh),
-		Padding: gui.Some(gui.Padding{}),
+		Padding: gui.PaddingNone,
 		Content: []gui.View{v},
 	})
 }
