@@ -95,7 +95,7 @@ func viewWith(osmSrc tile.Source, refSrc tile.Source) func(*gui.Window) gui.View
 			Width:   float32(ww),
 			Height:  float32(wh),
 			Sizing:  gui.FixedFixed,
-			Padding: gui.Some(gui.Padding{}),
+			Padding: gui.PaddingNone,
 			Content: []gui.View{
 				mapview.Map(mapview.Cfg{
 					ID:            mapID,
@@ -117,7 +117,7 @@ func sidebar() gui.View {
 	return gui.Column(gui.ContainerCfg{
 		Sizing:  gui.FixedFill,
 		Width:   float32(sidebarW),
-		Padding: gui.Some(gui.Padding{Left: 8, Right: 8, Top: 8, Bottom: 8}),
+		Padding: gui.NewPadding(8, 8, 8, 8),
 		Spacing: gui.Some[float32](8),
 		Content: []gui.View{
 			mapview.Legend(mapview.LegendCfg{

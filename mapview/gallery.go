@@ -71,7 +71,7 @@ type GalleryCfg struct {
 	Focusable bool
 
 	// Layout
-	Padding gui.Opt[gui.Padding]
+	Padding gui.Padding
 	Spacing gui.Opt[float32]
 
 	// Appearance
@@ -221,9 +221,7 @@ func galleryCard(
 		cfg.SizeBorder = gui.Some(inset)
 		cfg.ColorBorder = gui.Hex(0x2C6FD0)
 	} else {
-		cfg.Padding = gui.Some(gui.Padding{
-			Top: inset, Right: inset, Bottom: inset, Left: inset,
-		})
+		cfg.Padding = gui.NewPadding(inset, inset, inset, inset)
 	}
 	return gui.Column(cfg)
 }
