@@ -233,8 +233,6 @@ type mapView struct {
 	cfg Cfg
 }
 
-func (*mapView) Content() []gui.View { return nil }
-
 func (mv *mapView) GenerateLayout(w *gui.Window) gui.Layout {
 	c := mv.cfg
 	seed := MapState{

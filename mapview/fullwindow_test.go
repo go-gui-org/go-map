@@ -11,13 +11,14 @@ import (
 func TestFullWindow_WrapsChild(t *testing.T) {
 	w := &gui.Window{}
 	child := gui.Text(gui.TextCfg{Text: "sentinel"})
-	got := FullWindow(w, child)
-	content := got.Content()
-	if len(content) != 1 {
-		t.Fatalf("content = %d, want 1", len(content))
+	kids := FullWindow(w, child).GenerateLayout(w).Children
+	if len(kids) != 1 {
+		t.Fatalf("content = %d, want 1", len(kids))
 	}
-	if content[0] != child {
-		t.Errorf("content[0] = %v, want the passed-in child", content[0])
+	// The generated child must be the passed-in Text view, not an
+	// empty placeholder: its shape carries the sentinel string.
+	if s := kids[0].Shape; s == nil || s.TC == nil || s.TC.Text != "sentinel" {
+		t.Errorf("content[0] does not carry the passed-in child")
 	}
 }
 

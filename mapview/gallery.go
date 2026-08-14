@@ -100,8 +100,6 @@ type galleryView struct {
 	cfg GalleryCfg
 }
 
-func (*galleryView) Content() []gui.View { return nil }
-
 func (gv *galleryView) GenerateLayout(w *gui.Window) gui.Layout {
 	return gui.GenerateViewLayout(buildGallery(w, gv.cfg), w)
 }
