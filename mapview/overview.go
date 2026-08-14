@@ -98,8 +98,6 @@ func Overview(cfg OverviewCfg) gui.View {
 	return &overviewView{cfg: cfg}
 }
 
-func (*overviewView) Content() []gui.View { return nil }
-
 // GenerateLayout syncs the viewport rectangle from the target's
 // latest snapshot, then delegates the actual layout to an inner
 // mapview.Map. The inner Map's Content() is nil, so

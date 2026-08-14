@@ -30,7 +30,7 @@ func TestLegend_PanicsOnEmptyMapID(t *testing.T) {
 func TestLegend_EmptyRegistry(t *testing.T) {
 	w := &gui.Window{}
 	v := buildLegend(w, LegendCfg{MapID: "m"})
-	if got := len(v.Content()); got != 0 {
+	if got := len(v.GenerateLayout(w).Children); got != 0 {
 		t.Errorf("empty registry rows = %d, want 0", got)
 	}
 }
@@ -45,9 +45,10 @@ func TestLegend_TitlePrependsOneRow(t *testing.T) {
 	})
 	withTitle := buildLegend(w, LegendCfg{MapID: "m", Title: "Layers"})
 	without := buildLegend(w, LegendCfg{MapID: "m"})
-	if len(withTitle.Content()) != len(without.Content())+1 {
+	if len(withTitle.GenerateLayout(w).Children) != len(without.GenerateLayout(w).Children)+1 {
 		t.Errorf("title rows = %d, no-title rows = %d, want +1",
-			len(withTitle.Content()), len(without.Content()))
+			len(withTitle.GenerateLayout(w).Children),
+			len(without.GenerateLayout(w).Children))
 	}
 }
 
@@ -65,7 +66,7 @@ func TestLegend_SkipsEmptyName(t *testing.T) {
 		Kind: LayerKindReference, Visible: true,
 	})
 	v := buildLegend(w, LegendCfg{MapID: "m"})
-	if got := len(v.Content()); got != 1 {
+	if got := len(v.GenerateLayout(w).Children); got != 1 {
 		t.Errorf("rows = %d, want 1 (transit only; base has empty Name)",
 			got)
 	}
@@ -83,7 +84,7 @@ func TestLegend_RowPerNamedLayer(t *testing.T) {
 		LayerID: "b", Name: "B", Source: fakeSource{}, Visible: false,
 	})
 	v := buildLegend(w, LegendCfg{MapID: "m"})
-	if got := len(v.Content()); got != 2 {
+	if got := len(v.GenerateLayout(w).Children); got != 2 {
 		t.Errorf("rows = %d, want 2 (hidden layers still render)", got)
 	}
 }
@@ -100,15 +101,15 @@ func TestLegend_InsertionOrderPreserved(t *testing.T) {
 	AddLayer(w, "m", Layer{LayerID: "b", Name: "Mid", Source: fakeSource{}, Visible: true})
 	AddLayer(w, "m", Layer{LayerID: "a", Name: "Alpha", Source: fakeSource{}, Visible: true})
 	v := buildLegend(w, LegendCfg{MapID: "m"})
-	rows := v.Content()
+	rows := v.GenerateLayout(w).Children
 	if len(rows) != 3 {
 		t.Fatalf("rows = %d, want 3", len(rows))
 	}
 	// Toggle wraps Label inside a Row whose second child is the Text
 	// carrying the label string. Dig rather than trust alphabetics.
 	want := []string{"Zeta", "Mid", "Alpha"}
-	for i, r := range rows {
-		got := firstText(r)
+	for i := range rows {
+		got := firstText(&rows[i])
 		if got != want[i] {
 			t.Errorf("row[%d] label = %q, want %q", i, got, want[i])
 		}
@@ -188,35 +189,33 @@ func TestLegendRowA11YLabel(t *testing.T) {
 	}
 }
 
-// firstText walks a view's Content tree and returns the first Text
+// firstText walks a generated layout tree and returns the first Text
 // string it encounters. The Toggle factory nests the label inside a
 // Row > [box-row, label-text] tree; the box-row itself contains a
 // [glyph-text] — so the first Text in DFS order is the checkmark
 // glyph, not the Label. Step past any single-char leaf to land on
 // the caller's Label instead.
-func firstText(v gui.View) string {
-	for _, child := range v.Content() {
-		if t := extractText(child); t != "" && !isGlyph(t) {
+func firstText(l *gui.Layout) string {
+	for i := range l.Children {
+		if t := extractText(&l.Children[i]); t != "" && !isGlyph(t) {
 			return t
 		}
 	}
 	return ""
 }
 
-// extractText returns the Text shape content from a view if it is a
-// Text view, else recurses into the first Text-bearing descendant.
-func extractText(v gui.View) string {
-	w := &gui.Window{}
-	lo := v.GenerateLayout(w)
-	if lo.Shape != nil && lo.Shape.TC != nil {
+// extractText returns the Text shape content from a layout if it is a
+// Text node, else recurses into the first Text-bearing descendant.
+func extractText(l *gui.Layout) string {
+	if l.Shape != nil && l.Shape.TC != nil {
 		// Skip single-glyph nodes; they are the toggle's check/space.
-		if s := lo.Shape.TC.Text; !isGlyph(s) {
+		if s := l.Shape.TC.Text; !isGlyph(s) {
 			return s
 		}
 	}
-	for _, child := range lo.Children {
-		if child.Shape != nil && child.Shape.TC != nil {
-			if s := child.Shape.TC.Text; !isGlyph(s) {
+	for i := range l.Children {
+		if l.Children[i].Shape != nil && l.Children[i].Shape.TC != nil {
+			if s := l.Children[i].Shape.TC.Text; !isGlyph(s) {
 				return s
 			}
 		}

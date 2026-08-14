@@ -57,8 +57,6 @@ type legendView struct {
 	cfg LegendCfg
 }
 
-func (*legendView) Content() []gui.View { return nil }
-
 // GenerateLayout rebuilds the row list from the current layer
 // registry, then hands the inner Column to
 // gui.GenerateViewLayout so the tree walk picks up Title +

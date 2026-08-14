@@ -31,11 +31,11 @@ func TestGallery_EmptyEntries(t *testing.T) {
 	v := buildGallery(w, GalleryCfg{MapID: "m"})
 	// Content: no Title + the Row wrapper = 1 child. The Row's Content
 	// must be empty.
-	kids := v.Content()
+	kids := v.GenerateLayout(w).Children
 	if len(kids) != 1 {
 		t.Fatalf("root children = %d, want 1 (Row wrapper)", len(kids))
 	}
-	if cards := kids[0].Content(); len(cards) != 0 {
+	if cards := kids[0].Children; len(cards) != 0 {
 		t.Errorf("empty Entries produced %d cards, want 0", len(cards))
 	}
 }
@@ -58,9 +58,10 @@ func TestGallery_TitlePrependsOneChild(t *testing.T) {
 		MapID:   "m",
 		Entries: []GalleryEntry{{LayerID: "osm", Label: "OSM"}},
 	})
-	if len(withTitle.Content()) != len(without.Content())+1 {
+	if len(withTitle.GenerateLayout(w).Children) != len(without.GenerateLayout(w).Children)+1 {
 		t.Errorf("title children = %d, no-title = %d, want +1",
-			len(withTitle.Content()), len(without.Content()))
+			len(withTitle.GenerateLayout(w).Children),
+			len(without.GenerateLayout(w).Children))
 	}
 }
 
@@ -83,8 +84,8 @@ func TestGallery_UnknownLayerIDSkipped(t *testing.T) {
 			{LayerID: "", Label: "Blank"},
 		},
 	})
-	row := v.Content()[0]
-	if got := len(row.Content()); got != 1 {
+	row := v.GenerateLayout(w).Children[0]
+	if got := len(row.Children); got != 1 {
 		t.Errorf("cards = %d, want 1 (only osm registered)", got)
 	}
 }
@@ -108,8 +109,8 @@ func TestGallery_RendersCardPerRegisteredEntry(t *testing.T) {
 			{LayerID: "sat", Label: "Satellite"},
 		},
 	})
-	row := v.Content()[0]
-	if got := len(row.Content()); got != 2 {
+	row := v.GenerateLayout(w).Children[0]
+	if got := len(row.Children); got != 2 {
 		t.Errorf("cards = %d, want 2", got)
 	}
 }
@@ -311,9 +312,10 @@ func TestGallery_ZeroThumbSizeCoerces(t *testing.T) {
 		MapID:   "m",
 		Entries: []GalleryEntry{{LayerID: "osm", Label: "OSM"}},
 	})
-	card := v.Content()[0].Content()[0]
-	thumb := card.Content()[0]
-	lo := thumb.GenerateLayout(w)
+	kids := v.GenerateLayout(w).Children
+	card := kids[0].Children[0]
+	thumb := card.Children[0]
+	lo := thumb
 	if lo.Shape == nil {
 		t.Fatal("fallback thumb produced nil Shape")
 	}
