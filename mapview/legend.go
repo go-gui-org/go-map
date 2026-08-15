@@ -98,12 +98,14 @@ func buildLegend(w *gui.Window, c LegendCfg) gui.View {
 			focusID = c.ID + "/" + layerID
 		}
 		content = append(content, gui.Toggle(gui.ToggleCfg{
-			ID:              focusID,
-			Label:           l.Name,
-			Selected:        l.Visible,
-			FocusDisabled:   !c.Focusable,
-			A11YLabel:       legendRowA11YLabel(l),
-			A11YDescription: legendRowA11YDescription(l),
+			ID:            focusID,
+			Label:         l.Name,
+			Selected:      l.Visible,
+			FocusDisabled: !c.Focusable,
+			A11YCfg: gui.A11YCfg{
+				A11YLabel:       legendRowA11YLabel(l),
+				A11YDescription: legendRowA11YDescription(l),
+			},
 			OnClick: func(ctx gui.EventCtx) {
 				toggleLayerVisible(ctx.Window, c.MapID, layerID)
 			},
@@ -122,7 +124,7 @@ func buildLegend(w *gui.Window, c LegendCfg) gui.View {
 		Padding:   c.Padding,
 		Spacing:   c.Spacing,
 		Color:     c.Color,
-		A11YLabel: c.A11YLabel,
+		A11YCfg:   gui.A11YCfg{A11YLabel: c.A11YLabel},
 		Content:   content,
 	})
 }
