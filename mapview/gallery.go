@@ -169,7 +169,7 @@ func buildGallery(w *gui.Window, c GalleryCfg) gui.View {
 		Padding:   c.Padding,
 		Spacing:   c.Spacing,
 		Color:     c.Color,
-		A11YLabel: c.A11YLabel,
+		A11YCfg:   gui.A11YCfg{A11YLabel: c.A11YLabel},
 		Content:   content,
 	})
 }
@@ -201,12 +201,14 @@ func galleryCard(
 	}
 	inset := galleryBorderWidth
 	cfg := gui.ContainerCfg{
-		ID:              focusID,
-		Focusable:       focusID != "",
-		A11YRole:        gui.AccessRoleRadioButton,
-		A11YState:       state,
-		A11YLabel:       galleryCardA11YLabel(e.Label, selected),
-		A11YDescription: galleryCardA11YDescription(selected),
+		ID:        focusID,
+		Focusable: focusID != "",
+		A11YRole:  gui.AccessRoleRadioButton,
+		A11YState: state,
+		A11YCfg: gui.A11YCfg{
+			A11YLabel:       galleryCardA11YLabel(e.Label, selected),
+			A11YDescription: galleryCardA11YDescription(selected),
+		},
 		OnClick: func(ctx gui.EventCtx) {
 			selectGalleryLayer(ctx.Window, mapID, e.LayerID)
 		},
