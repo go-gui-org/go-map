@@ -7,15 +7,26 @@
 
 ## Build and Test
 
+Run the full local validation gate before pushing a branch:
+
 ```
-go build ./...
-go vet ./...
-go test ./...
-golangci-lint run ./...
-gofmt -l .
+make prepush
 ```
 
-All must pass before committing.
+`make prepush` approximates the CI matrix from one host: race-enabled tests,
+`go vet`, lint, and a build. It aborts on the first failing target. Individual
+targets (`make test`, `test-race`, `vet`, `lint`, `build`) are available for a
+tighter loop while iterating.
+
+Gate targets run with `GOWORK=off` so they resolve the versions in `go.mod`,
+which is what CI does — a local `go.work` pointing at a sibling checkout would
+otherwise validate something CI never sees.
+
+### CI-only validation
+
+`make prepush` covers one host. CI additionally runs the whole suite on both
+`ubuntu-latest` and `macos-latest`, so a platform-specific failure on the OS you
+are not using can only be caught there.
 
 ## Coding Conventions
 
