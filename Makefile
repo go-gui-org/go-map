@@ -6,6 +6,12 @@
 # are added later) may use a bare `go` to pick the workspace back up.
 GO := GOWORK=off go
 
+# golangci-lint is its own binary, so $(GO) does not cover it — but it
+# honours go.work the same way the toolchain does. Without GOWORK=off it
+# would type-check against sibling working copies and report breakage that
+# CI, which builds the pinned versions, will never see.
+LINT := GOWORK=off golangci-lint
+
 # Run the test suite. Mirrors the CI test job's non-race half (macOS runner).
 test:
 	$(GO) test ./...
@@ -24,7 +30,7 @@ vet:
 # what CI would approximate. The v2 config runs the gofmt/goimports
 # formatters as part of the same pass.
 lint:
-	golangci-lint run ./...
+	$(LINT) run ./...
 
 build:
 	$(GO) build ./...
