@@ -3,7 +3,7 @@ module github.com/go-gui-org/go-map
 go 1.26.0
 
 require (
-	github.com/go-gui-org/go-gui v0.66.0
+	github.com/go-gui-org/go-gui v0.66.1
 	golang.org/x/sync v0.22.0
 	golang.org/x/tools v0.49.0
 )
