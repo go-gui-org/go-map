@@ -5,8 +5,25 @@ All notable changes are documented here. Format follows
 
 ## Unreleased
 
+## v0.5.0 - 2026-09-02
+
 ### Changed
 
+- **The module path is now `github.com/go-gui-org/go-map`.** This is the first
+  tag under the new path. Tag v0.4.1 and earlier declare
+  `github.com/mike-ward/go-map`, so a consumer that wants a tagged build must
+  move to v0.5.0. Change the import paths, then run `go mod tidy`.
+- **Bump go-gui v0.53.0 -> v0.66.1 and go-glyph -> v1.24.0.** This covers the
+  per-scope effective IDs, the `ColorSet` per-state colors, the `Padding` and
+  `Sizing` self-flag change, the single-method `View` interface, and the
+  window-owned theme. The notes below describe the earlier steps of the same
+  migration.
+- `mapview` calls `gui.GenerateViewLayout` again. The local `layoutRecursive`
+  fork is gone.
+- `make prepush` runs the full local gate: race tests, lint, cross-compile, and
+  the export audit.
+- Structural lines use `DrawContext.Scale`, so a hairline is one physical pixel
+  on a HiDPI display.
 - **Bump go-gui v0.52.0 → v0.53.0.** go-gui's nine input factories now panic on
   an empty `Cfg.ID`: focus traversal and per-widget state are keyed by it, so a
   control without one renders and clicks but is unreachable by keyboard. No
