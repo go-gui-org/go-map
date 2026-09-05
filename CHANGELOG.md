@@ -5,6 +5,11 @@ All notable changes are documented here. Format follows
 
 ## Unreleased
 
+## v0.7.0 - 2026-09-05
+
+- Bump go-gui v0.68.0 → v0.69.0 (go-glyph v1.25.0 indirect). No migration
+  needed: no use of the removed `Scrollable` fields.
+
 ## v0.6.0 - 2026-09-05
 
 - Bump go-gui v0.66.1 → v0.68.0 and go-glyph v1.24.0 → v1.25.0 (indirect).
