@@ -5,6 +5,10 @@ All notable changes are documented here. Format follows
 
 ## Unreleased
 
+## v0.6.0 - 2026-09-05
+
+- Bump go-gui v0.66.1 → v0.68.0 and go-glyph v1.24.0 → v1.25.0 (indirect).
+
 ## v0.5.0 - 2026-09-02
 
 ### Changed
