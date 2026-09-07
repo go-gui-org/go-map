@@ -6,6 +6,21 @@ on:
   pull_request:
     branches: [main]
 
+# Read-only. Nothing here publishes, comments or tags, so the job token
+# needs no more than the checkout.
+permissions:
+  contents: read
+
+# go-map contains no cgo: no file in the module declares `import "C"` or
+# a #cgo directive. Tile decoding is x/image, and drawing goes through
+# go-gui, which is pure Go on Linux and Windows. The SDL2, FreeType,
+# HarfBuzz, Pango and fontconfig packages this workflow used to install
+# on both platforms were left over from go-glyph's cgo era and are gone.
+#
+# macOS keeps the toolchain default (cgo on) rather than being forced
+# off. Nothing here needs it, but go-gui's Metal backend does, and a
+# darwin build with cgo off still succeeds while linking no Metal at
+# all -- so forcing it off would buy nothing and hide that failure.
 jobs:
   test:
     name: Test (${{ matrix.os }})
@@ -15,33 +30,13 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           path: go-map
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: stable
-
-      - name: Install Linux deps
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            pkg-config \
-            libsdl2-dev \
-            libfreetype6-dev \
-            libharfbuzz-dev \
-            libpango1.0-dev \
-            libfontconfig1-dev
-
-      - name: Install macOS deps
-        if: runner.os == 'macOS'
-        run: |
-          brew install pkg-config sdl2 freetype harfbuzz pango fontconfig
-          prefix=$(brew --prefix)
-          echo "PKG_CONFIG_PATH=${prefix}/lib/pkgconfig:${prefix}/share/pkgconfig" >> "$GITHUB_ENV"
-          echo "CGO_ENABLED=1" >> "$GITHUB_ENV"
 
       - name: Test
         working-directory: go-map
@@ -51,31 +46,20 @@ jobs:
     name: Vet
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           path: go-map
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: stable
-
-      - name: Install Linux deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            pkg-config \
-            libsdl2-dev \
-            libfreetype6-dev \
-            libharfbuzz-dev \
-            libpango1.0-dev \
-            libfontconfig1-dev
 
       - name: Vet
         working-directory: go-map
         run: go vet ./...
 
       - name: Lint
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@v9
         with:
           working-directory: go-map
           args: ./...
