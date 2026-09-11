@@ -52,7 +52,7 @@ func main() {
         Title:  "Map",
         Width:  900,
         Height: 650,
-        OnInit: func(w *gui.Window) { w.UpdateView(view) },
+        OnInit: func(w *gui.Window) { w.SetView(view) },
     }
     if f, ok := src.(tile.HTTPFetcher); ok {
         cfg.ImageFetcher = f.HTTPFetcher()

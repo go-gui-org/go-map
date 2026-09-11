@@ -25,7 +25,7 @@ func main() {
 		Title:  "go-map — partial",
 		Width:  1100,
 		Height: 700,
-		OnInit: func(w *gui.Window) { w.UpdateView(view) },
+		OnInit: func(w *gui.Window) { w.SetView(view) },
 	}
 	if f, ok := src.(tile.HTTPFetcher); ok {
 		cfg.ImageFetcher = f.HTTPFetcher()
