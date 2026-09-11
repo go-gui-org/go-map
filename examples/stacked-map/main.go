@@ -59,7 +59,7 @@ func main() {
 		Width:  1200,
 		Height: 720,
 		OnInit: func(w *gui.Window) {
-			w.UpdateView(viewWith(osmSrc, refSrc))
+			w.SetView(viewWith(osmSrc, refSrc))
 		},
 	}
 	// A window-level fallback fetcher is not needed here: both layers

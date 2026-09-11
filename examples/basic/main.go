@@ -23,7 +23,7 @@ func main() {
 		Width:  900,
 		Height: 650,
 		OnInit: func(w *gui.Window) {
-			w.UpdateView(view)
+			w.SetView(view)
 		},
 	}
 	if f, ok := src.(tile.HTTPFetcher); ok {

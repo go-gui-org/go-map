@@ -53,7 +53,7 @@ func main() {
 		Title:  "go-map — gallery (base-layer picker)",
 		Width:  1200,
 		Height: 720,
-		OnInit: func(w *gui.Window) { w.UpdateView(viewWith(osmSrc, waySrc)) },
+		OnInit: func(w *gui.Window) { w.SetView(viewWith(osmSrc, waySrc)) },
 	}
 	backend.Run(gui.NewWindow(cfg))
 }

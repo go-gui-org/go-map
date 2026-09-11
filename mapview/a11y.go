@@ -30,7 +30,7 @@ type a11yDebounceState struct {
 
 // a11yTimeNow and a11yScheduleWake are indirection points for tests.
 // The defaults route through real time.Now and a time.AfterFunc that
-// queues a full layout refresh. RequestRedraw is not enough — it
+// queues a full layout refresh. InvalidateRender is not enough — it
 // triggers only UpdateRenderOnly, which rebuilds renderers from the
 // cached layout tree without re-invoking the view generator, so
 // debouncedA11Y would never run to promote the pending string. The
@@ -44,7 +44,7 @@ var (
 			return nil
 		}
 		return time.AfterFunc(d, func() {
-			w.QueueCommand(func(ww *gui.Window) { ww.UpdateWindow() })
+			w.QueueCommand(func(ww *gui.Window) { ww.InvalidateLayout() })
 		})
 	}
 )

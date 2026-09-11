@@ -1,7 +1,7 @@
 # go-map Architecture
 
 Interactive slippy-tile map widget for [go-gui](https://github.com/go-gui-org/go-gui).
-Tiles load asynchronously; `gui.Window.RequestRedraw()` wakes the frame loop on arrival.
+Tiles load asynchronously; `gui.Window.InvalidateRender()` wakes the frame loop on arrival.
 
 ---
 
@@ -391,7 +391,7 @@ func CanvasSize(w *gui.Window, id string) (width, height float32, ok bool)
 ```
 
 All write functions call `nsWrite` internally, which bumps the render version
-and schedules a redraw via `w.RequestRedraw()`.
+and schedules a redraw via `w.InvalidateRender()`.
 
 ---
 

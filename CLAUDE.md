@@ -16,7 +16,7 @@ go run ./examples/basic         # run demo (requires SDL2)
 ## Architecture
 
 Interactive slippy-tile map widget built on go-gui. Tile images load
-asynchronously; `Window.RequestRedraw()` wakes the frame loop when a tile lands.
+asynchronously; `Window.InvalidateRender()` wakes the frame loop when a tile lands.
 
 ```
 mapview.Map(Cfg{...}) → gui.View
@@ -61,7 +61,7 @@ composite fetcher. Consumers that wire only one source can still rely on
 ### Async Tiles
 
 `tile.Source.Fetch` runs on a goroutine. On completion, the widget stores the
-decoded image and calls `w.RequestRedraw()` to re-layout. Inflight requests are
+decoded image and calls `w.InvalidateRender()` to re-render. Inflight requests are
 deduped by `TileCoord`.
 
 ### Attribution Requirement
