@@ -5,6 +5,12 @@ All notable changes are documented here. Format follows
 
 ## Unreleased
 
+## v0.10.0 - 2026-09-11
+
+- Bump go-gui v0.73.0 → v0.74.0 and migrate off the deprecated forwarders
+  (`UpdateWindow` → `InvalidateLayout`, `RequestRedraw` → `InvalidateRender`,
+  `UpdateView` → `SetView`).
+
 ## v0.9.0 - 2026-09-10
 
 - Bump go-gui v0.72.0 → v0.73.0.
