@@ -5,6 +5,10 @@ All notable changes are documented here. Format follows
 
 ## Unreleased
 
+## v0.12.0 - 2026-09-13
+
+- Bump go-gui v0.75.0 → v0.76.0.
+
 ## v0.11.0 - 2026-09-12
 
 - Bump go-gui v0.74.0 → v0.75.0.
