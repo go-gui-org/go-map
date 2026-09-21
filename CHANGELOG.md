@@ -3,11 +3,13 @@
 All notable changes are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Unreleased
+## [Unreleased]
+
+## [v0.14.0] - 2026-09-21
 
 - Bump go-gui v0.77.0 → v0.78.0 (no source changes needed).
 
-## v0.13.0 - 2026-09-16
+## [v0.13.0] - 2026-09-16
 
 - Bump go-gui v0.76.0 → v0.77.0.
 
