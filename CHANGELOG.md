@@ -5,6 +5,14 @@ All notable changes are documented here. Format follows
 
 ## [Unreleased]
 
+- **BREAKING: `LegendCfg.Spacing` and `GalleryCfg.Spacing` take a `gui.Spacing`
+  (go-gui v0.82.0).** Bump go-gui v0.81.0 → v0.82.0. The fields changed from
+  `gui.Opt[float32]` to match the go-gui Cfg fields. Migration:
+  `gui.Some[float32](6)` → `gui.SpacingSmall` (a theme step) or
+  `gui.SpacingPx(n)` (a fixed gap); `gui.Some[float32](0)` → `gui.NoSpacing`.
+  The gallery card gap snaps from 8 px to `gui.SpacingSmall` (6 px); the
+  selection ring keeps its fixed width.
+
 ## [v0.17.0] - 2026-09-28
 
 - Bump go-gui v0.80.0 → v0.81.0 (no source changes needed).

@@ -158,7 +158,7 @@ func toolbar() gui.View {
 		Sizing:  gui.FillFixed,
 		Height:  toolbarHeight,
 		Padding: gui.NewPadding(4, 6, 4, 6),
-		Spacing: gui.Some[float32](6),
+		Spacing: gui.SpacingSmall,
 		Content: buttons,
 	})
 }

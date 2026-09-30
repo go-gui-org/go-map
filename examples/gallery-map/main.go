@@ -94,7 +94,7 @@ func viewWith(osmSrc tile.Source, waySrc tile.Source) func(*gui.Window) gui.View
 	}
 	return func(w *gui.Window) gui.View {
 		ww, wh := w.WindowSize()
-		mapW := float32(ww) - float32(sidebarW) - gui.SpacingLarge
+		mapW := float32(ww) - float32(sidebarW) - w.Theme().SpacingLarge
 		return gui.Row(gui.ContainerCfg{
 			Width:   float32(ww),
 			Height:  float32(wh),
@@ -122,7 +122,7 @@ func sidebar(entries []mapview.GalleryEntry) gui.View {
 		Sizing:  gui.FixedFill,
 		Width:   float32(sidebarW),
 		Padding: gui.NewPadding(8, 8, 8, 8),
-		Spacing: gui.Some[float32](8),
+		Spacing: gui.SpacingSmall,
 		Content: []gui.View{
 			mapview.Gallery(mapview.GalleryCfg{
 				ID:        galleryID,

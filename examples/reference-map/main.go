@@ -77,7 +77,7 @@ func sidebar() gui.View {
 		Sizing:  gui.FixedFill,
 		Width:   float32(sidebarW),
 		Padding: gui.NewPadding(8, 8, 8, 8),
-		Spacing: gui.Some[float32](8),
+		Spacing: gui.SpacingSmall,
 		Content: []gui.View{
 			gui.Text(gui.TextCfg{Text: "Locator", Hero: true}),
 			mapview.Overview(mapview.OverviewCfg{

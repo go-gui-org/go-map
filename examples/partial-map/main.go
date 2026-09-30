@@ -73,7 +73,7 @@ func detailPanel(w *gui.Window) gui.View {
 		Sizing:  gui.FixedFill,
 		Width:   240,
 		Padding: gui.NewPadding(12, 12, 12, 12),
-		Spacing: gui.Some[float32](6),
+		Spacing: gui.SpacingSmall,
 		Content: body,
 	})
 }
