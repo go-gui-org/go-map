@@ -72,7 +72,7 @@ type GalleryCfg struct {
 
 	// Layout
 	Padding gui.Padding
-	Spacing gui.Opt[float32]
+	Spacing gui.Spacing
 
 	// Appearance
 	Color gui.Color
@@ -152,7 +152,7 @@ func buildGallery(w *gui.Window, c GalleryCfg) gui.View {
 	// than n*ThumbSize. Spacing drives both row and column gap.
 	content = append(content, gui.Row(gui.ContainerCfg{
 		Wrap:     true,
-		Spacing:  gui.Some[float32](8),
+		Spacing:  gui.SpacingSmall,
 		A11YRole: gui.AccessRoleRadioGroup,
 		Content:  cards,
 	}))
@@ -218,7 +218,7 @@ func galleryCard(
 		},
 	}
 	if selected {
-		cfg.SizeBorder = gui.Some(inset)
+		cfg.SizeBorder = gui.BorderPx(inset)
 		cfg.ColorBorder = gui.Hex(0x2C6FD0)
 	} else {
 		cfg.Padding = gui.NewPadding(inset, inset, inset, inset)

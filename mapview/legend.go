@@ -40,7 +40,7 @@ type LegendCfg struct {
 
 	// Layout
 	Padding gui.Padding
-	Spacing gui.Opt[float32]
+	Spacing gui.Spacing
 
 	// Appearance
 	Color gui.Color
