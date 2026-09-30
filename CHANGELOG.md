@@ -5,6 +5,8 @@ All notable changes are documented here. Format follows
 
 ## [Unreleased]
 
+## [v0.18.0] - 2026-09-29
+
 - **BREAKING: `LegendCfg.Spacing` and `GalleryCfg.Spacing` take a `gui.Spacing`
   (go-gui v0.82.0).** Bump go-gui v0.81.0 → v0.82.0. The fields changed from
   `gui.Opt[float32]` to match the go-gui Cfg fields. Migration:
