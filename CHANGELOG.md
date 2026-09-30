@@ -5,6 +5,11 @@ All notable changes are documented here. Format follows
 
 ## [Unreleased]
 
+## [v0.19.0] - 2026-09-30
+
+- Bump go-gui v0.82.0 → v0.83.0 (go-glyph v1.26.1 indirect, no source
+  changes needed). Add go.work.sum to .gitignore.
+
 ## [v0.18.0] - 2026-09-29
 
 - **BREAKING: `LegendCfg.Spacing` and `GalleryCfg.Spacing` take a `gui.Spacing`
