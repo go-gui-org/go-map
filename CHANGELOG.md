@@ -5,10 +5,14 @@ All notable changes are documented here. Format follows
 
 ## [Unreleased]
 
+- Add `OSMConfig.BaseURL`, `Attribution` and `MaxZoom`. `tile.OSMWithConfig` can
+  now point at a self-hosted slippy-tile server with the standard
+  `{z}/{x}/{y}.png` layout (#82). Zero values keep the public OSM server.
+
 ## [v0.19.0] - 2026-09-30
 
-- Bump go-gui v0.82.0 → v0.83.0 (go-glyph v1.26.1 indirect, no source
-  changes needed). Add go.work.sum to .gitignore.
+- Bump go-gui v0.82.0 → v0.83.0 (go-glyph v1.26.1 indirect, no source changes
+  needed). Add go.work.sum to .gitignore.
 
 ## [v0.18.0] - 2026-09-29
 

@@ -21,10 +21,12 @@ func testSource(t *testing.T, baseURL, ua string) *osmSource {
 	t.Helper()
 	prefix := baseURL + "/"
 	return &osmSource{
-		client:    http.DefaultClient,
-		userAgent: SanitizeHeader(ua),
-		urlPrefix: prefix,
-		sem:       semaphore.NewWeighted(DefaultConcurrency),
+		client:      http.DefaultClient,
+		userAgent:   SanitizeHeader(ua),
+		urlPrefix:   prefix,
+		attribution: osmAttribution,
+		maxZoom:     osmMaxZoom,
+		sem:         semaphore.NewWeighted(DefaultConcurrency),
 	}
 }
 
@@ -608,5 +610,106 @@ func TestOSM_HTTPFetcher_PropagatesContext(t *testing.T) {
 	if !strings.Contains(err.Error(), "canceled") &&
 		!strings.Contains(err.Error(), "context") {
 		t.Errorf("error = %v, want context-cancellation", err)
+	}
+}
+
+// Issue 82: OSMConfig.BaseURL points the source at a self-hosted slippy-tile
+// server that serves the same {z}/{x}/{y}.png path shape.
+func TestOSMWithConfig_BaseURL(t *testing.T) {
+	src := OSMWithConfig(OSMConfig{BaseURL: "https://tiles.example.com/hot/"})
+	want := "https://tiles.example.com/hot/11/328/715.png"
+	if got := src.URL(Coord{Z: 11, X: 328, Y: 715}); got != want {
+		t.Errorf("URL = %q, want %q", got, want)
+	}
+}
+
+func TestOSMWithConfig_BaseURLAddsTrailingSlash(t *testing.T) {
+	src := OSMWithConfig(OSMConfig{BaseURL: "https://tiles.example.com/hot"})
+	want := "https://tiles.example.com/hot/1/0/0.png"
+	if got := src.URL(Coord{Z: 1, X: 0, Y: 0}); got != want {
+		t.Errorf("URL = %q, want %q", got, want)
+	}
+}
+
+func TestOSMWithConfig_EmptyBaseURLDefaultsToOSM(t *testing.T) {
+	src := OSMWithConfig(OSMConfig{})
+	want := "https://tile.openstreetmap.org/1/0/0.png"
+	if got := src.URL(Coord{Z: 1, X: 0, Y: 0}); got != want {
+		t.Errorf("URL = %q, want %q", got, want)
+	}
+}
+
+func TestOSMWithConfig_WhitespaceBaseURL(t *testing.T) {
+	// Whitespace-only counts as blank and falls back to OSM; surrounding
+	// whitespace is trimmed.
+	src := OSMWithConfig(OSMConfig{BaseURL: "   "})
+	want := "https://tile.openstreetmap.org/1/0/0.png"
+	if got := src.URL(Coord{Z: 1, X: 0, Y: 0}); got != want {
+		t.Errorf("URL = %q, want %q", got, want)
+	}
+	src = OSMWithConfig(OSMConfig{BaseURL: "  https://tiles.example.com/hot  "})
+	want = "https://tiles.example.com/hot/1/0/0.png"
+	if got := src.URL(Coord{Z: 1, X: 0, Y: 0}); got != want {
+		t.Errorf("URL = %q, want %q", got, want)
+	}
+}
+
+func TestOSMWithConfig_BaseURLFetch(t *testing.T) {
+	var gotPath, gotUA string
+	srv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			gotPath = r.URL.Path
+			gotUA = r.Header.Get("User-Agent")
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(pngFixture)
+		}))
+	defer srv.Close()
+
+	src := OSMWithConfig(OSMConfig{BaseURL: srv.URL + "/hot", UserAgent: "self/1.0"})
+	body, err := src.Fetch(context.Background(), Coord{Z: 1, X: 0, Y: 1})
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if !IsPNG(body) {
+		t.Error("Fetch body is not the PNG fixture")
+	}
+	if gotPath != "/hot/1/0/1.png" {
+		t.Errorf("path = %q, want /hot/1/0/1.png", gotPath)
+	}
+	if gotUA != "self/1.0" {
+		t.Errorf("User-Agent = %q, want self/1.0", gotUA)
+	}
+}
+
+func TestOSMWithConfig_CustomAttribution(t *testing.T) {
+	want := "© OpenStreetMap contributors, tiles © Example Co"
+	src := OSMWithConfig(OSMConfig{Attribution: want})
+	if got := src.Attribution(); got != want {
+		t.Errorf("Attribution = %q, want %q", got, want)
+	}
+}
+
+func TestOSMWithConfig_DefaultAttribution(t *testing.T) {
+	// Blank or whitespace-only attribution falls back: attribution is never
+	// hideable (OSM tile policy).
+	for _, a := range []string{"", "   "} {
+		src := OSMWithConfig(OSMConfig{Attribution: a})
+		if got := src.Attribution(); got != "© OpenStreetMap contributors" {
+			t.Errorf("Attribution(%q) = %q, want OSM default", a, got)
+		}
+	}
+}
+
+func TestOSMWithConfig_CustomMaxZoom(t *testing.T) {
+	src := OSMWithConfig(OSMConfig{MaxZoom: 17})
+	if got := src.MaxZoom(); got != 17 {
+		t.Errorf("MaxZoom = %d, want 17", got)
+	}
+}
+
+func TestOSMWithConfig_DefaultMaxZoom(t *testing.T) {
+	src := OSMWithConfig(OSMConfig{})
+	if got := src.MaxZoom(); got != 19 {
+		t.Errorf("MaxZoom = %d, want 19", got)
 	}
 }
