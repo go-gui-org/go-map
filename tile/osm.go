@@ -13,21 +13,31 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-// osmSource fetches tiles from the public OSM tile server.
-// Usage requires compliance with
+// osmSource fetches slippy tiles laid out as {z}/{x}/{y}.png. By default it
+// talks to the public OSM tile server, whose use requires compliance with
 // https://operations.osmfoundation.org/policies/tiles/
+// OSMConfig.BaseURL points it at a self-hosted server with the same layout.
 //
 // Throttling is the caller's responsibility: OSM tile policy bans
 // heavy or bulk traffic. This source does not rate-limit.
 type osmSource struct {
-	client    *http.Client
-	userAgent string
-	urlPrefix string // per-server URL stem; overridable in tests.
-	sem       *semaphore.Weighted
+	client      *http.Client
+	userAgent   string
+	urlPrefix   string // per-server URL stem, always ends in "/".
+	attribution string
+	maxZoom     uint32
+	sem         *semaphore.Weighted
 }
 
 // osmURLPrefix is the production OSM tile-server URL stem.
 const osmURLPrefix = "https://tile.openstreetmap.org/"
+
+// osmAttribution is the credit line OSM data requires. It is also the
+// fallback for self-hosted servers, which almost always render OSM data.
+const osmAttribution = "© OpenStreetMap contributors"
+
+// osmMaxZoom is the highest zoom the public OSM tile server serves.
+const osmMaxZoom = 19
 
 // maxTileBytes caps response-body size per fetch. A 256² tile is a
 // few KiB; the cap stops a hostile or misconfigured server from
@@ -41,8 +51,23 @@ const DefaultConcurrency = 12
 
 // OSMConfig parameterises an OSM tile source. Zero values are safe:
 // UserAgent defaults to the go-map UA; Concurrency defaults to
-// DefaultConcurrency.
+// DefaultConcurrency; BaseURL, Attribution and MaxZoom default to the
+// public OSM tile server.
 type OSMConfig struct {
+	// BaseURL is the tile-server URL stem. The source appends
+	// "{z}/{x}/{y}.png" to it, so it fits any slippy server with the
+	// standard OSM layout (renderd/mod_tile, tileserver-gl raster, etc.).
+	// A missing trailing "/" is added. Empty uses
+	// "https://tile.openstreetmap.org/".
+	BaseURL string
+	// Attribution is the credit line drawn on the map. Blank falls back
+	// to "© OpenStreetMap contributors"; attribution cannot be turned
+	// off. A self-hosted server that renders OSM data must still credit
+	// OSM contributors, so keep that text when you set your own.
+	Attribution string
+	// MaxZoom is the highest zoom the server serves. 0 uses 19, the
+	// public OSM server limit.
+	MaxZoom uint32
 	// UserAgent is sent on every request. Empty falls back to
 	// "go-map/0 (https://github.com/go-gui-org/go-map)".
 	UserAgent string
@@ -61,13 +86,32 @@ func OSMWithConfig(cfg OSMConfig) Source {
 	if n <= 0 {
 		n = DefaultConcurrency
 	}
+	// Normalise the prefix once here so buildTileURL stays a plain
+	// append on the per-frame path.
+	prefix := strings.TrimSpace(cfg.BaseURL)
+	if prefix == "" {
+		prefix = osmURLPrefix
+	} else if !strings.HasSuffix(prefix, "/") {
+		prefix += "/"
+	}
+	// Whitespace-only counts as blank so attribution can never render empty.
+	attr := strings.TrimSpace(cfg.Attribution)
+	if attr == "" {
+		attr = osmAttribution
+	}
+	maxZoom := cfg.MaxZoom
+	if maxZoom == 0 {
+		maxZoom = osmMaxZoom
+	}
 	return &osmSource{
 		// 15 s matches OSM's recommended per-tile deadline; longer would
 		// hold connections open during tile-server congestion.
-		client:    &http.Client{Timeout: 15 * time.Second},
-		userAgent: SanitizeHeader(ua),
-		urlPrefix: osmURLPrefix,
-		sem:       semaphore.NewWeighted(int64(n)),
+		client:      &http.Client{Timeout: 15 * time.Second},
+		userAgent:   SanitizeHeader(ua),
+		urlPrefix:   prefix,
+		attribution: attr,
+		maxZoom:     maxZoom,
+		sem:         semaphore.NewWeighted(int64(n)),
 	}
 }
 
@@ -184,11 +228,9 @@ func (s *osmSource) Fetch(ctx context.Context, c Coord) ([]byte, error) {
 	}
 }
 
-func (s *osmSource) Attribution() string {
-	return "© OpenStreetMap contributors"
-}
+func (s *osmSource) Attribution() string { return s.attribution }
 
-func (*osmSource) MaxZoom() uint32 { return 19 }
+func (s *osmSource) MaxZoom() uint32 { return s.maxZoom }
 
 // HTTPFetcher returns a function suitable for
 // gui.WindowCfg.ImageFetcher. Sends the Source's User-Agent on every

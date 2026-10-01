@@ -3,24 +3,36 @@
 [![Go 1.26+](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
-Interactive slippy-tile map widget for [go-gui](https://github.com/go-gui-org/go-gui).
-Raster tiles, pan/zoom, vector overlays, stacked layers.
+Interactive slippy-tile map widget for
+[go-gui](https://github.com/go-gui-org/go-gui). Raster tiles, pan/zoom, vector
+overlays, stacked layers.
 
 ![Screenshot](screenshot.png)
 
 ## Features
 
-- **Tile sources** — OSM and WMS 1.3.0 (EPSG:3857) out of the box; custom sources via the `tile.Source` interface
-- **Pan and zoom** — mouse drag, scroll wheel, trackpad, keyboard; kinetic fling after drag release
-- **Fractional zoom** — `ScrollZoomGain` trades wheel speed for sub-level precision
-- **Overlays** — `Marker`, `Polyline`, `Polygon`, `Circle`; up to 10 000 per map, culled to viewport each frame
-- **Stacked layers** — one exclusive Base plus any number of Reference layers; `AddLayer` / `RemoveLayer` / `SetBaseLayer` at runtime
-- **InfoWindow** — per-Marker popup with title, body, and up to 4 action buttons; keyboard-navigable
-- **HUD chrome** — scale bar, zoom level, coordinate readout, home button, attribution (non-removable per OSM policy)
-- **Companion widgets** — `Legend` (layer visibility toggles), `Gallery` (base-layer switcher with thumbnails), `Overview` (locator inset with click-to-pan)
-- **State API** — `PanTo`, `SetZoom`, `SetView`, `FitBounds`, `Snapshot`, `CanvasSize`
+- **Tile sources** — OSM and WMS 1.3.0 (EPSG:3857) out of the box; custom
+  sources via the `tile.Source` interface
+- **Pan and zoom** — mouse drag, scroll wheel, trackpad, keyboard; kinetic fling
+  after drag release
+- **Fractional zoom** — `ScrollZoomGain` trades wheel speed for sub-level
+  precision
+- **Overlays** — `Marker`, `Polyline`, `Polygon`, `Circle`; up to 10 000 per
+  map, culled to viewport each frame
+- **Stacked layers** — one exclusive Base plus any number of Reference layers;
+  `AddLayer` / `RemoveLayer` / `SetBaseLayer` at runtime
+- **InfoWindow** — per-Marker popup with title, body, and up to 4 action
+  buttons; keyboard-navigable
+- **HUD chrome** — scale bar, zoom level, coordinate readout, home button,
+  attribution (non-removable per OSM policy)
+- **Companion widgets** — `Legend` (layer visibility toggles), `Gallery`
+  (base-layer switcher with thumbnails), `Overview` (locator inset with
+  click-to-pan)
+- **State API** — `PanTo`, `SetZoom`, `SetView`, `FitBounds`, `Snapshot`,
+  `CanvasSize`
 - **Callbacks** — `OnMove`, `OnZoomChange`, `OnHover`, `OnClick`, `OnPOISelect`
-- **Accessibility** — ARIA labels and roles, full keyboard navigation, `a11ylint` static analyzer
+- **Accessibility** — ARIA labels and roles, full keyboard navigation,
+  `a11ylint` static analyzer
 
 ## Packages
 
@@ -79,6 +91,23 @@ Run the included demo (requires SDL2):
 go run ./examples/basic
 ```
 
+### Self-hosted tile server
+
+Point the OSM source at your own slippy-tile server. The source appends
+`{z}/{x}/{y}.png` to `BaseURL`:
+
+```go
+var src = tile.OSMWithConfig(tile.OSMConfig{
+    BaseURL:     "https://tiles.example.com/hot/",
+    UserAgent:   "my-app/1.0 (contact@example.com)",
+    Attribution: "© OpenStreetMap contributors",
+    MaxZoom:     18,
+})
+```
+
+Blank `Attribution` and zero `MaxZoom` use the public OSM values. The server
+must return PNG tiles. For a different URL layout, implement `tile.Source`.
+
 ## Keyboard Controls
 
 | Key                 | Action                                           |
@@ -95,8 +124,9 @@ go run ./examples/basic
 
 ## Overlays
 
-Overlays are added and removed at runtime via `AddOverlay` / `RemoveOverlay` / `ClearOverlays`.
-Each type implements the `Overlay` interface (`ID`, `Bounds`, `Draw`, `HitTest`).
+Overlays are added and removed at runtime via `AddOverlay` / `RemoveOverlay` /
+`ClearOverlays`. Each type implements the `Overlay` interface (`ID`, `Bounds`,
+`Draw`, `HitTest`).
 
 ```go
 mapview.AddOverlay(w, "map", &mapview.Marker{
@@ -168,7 +198,8 @@ mapview.SetLayerVisible(w, "map", "parcels", false)
 
 ### Legend
 
-Renders a toggle row per named layer. Layers seeded via `Cfg.Source` (no `Name`) are skipped.
+Renders a toggle row per named layer. Layers seeded via `Cfg.Source` (no `Name`)
+are skipped.
 
 ```go
 mapview.Legend(mapview.LegendCfg{
@@ -194,8 +225,8 @@ mapview.Gallery(mapview.GalleryCfg{
 
 ### Overview
 
-Locator inset showing the primary map's viewport as a rectangle.
-Clicking the overview recenters the primary map.
+Locator inset showing the primary map's viewport as a rectangle. Clicking the
+overview recenters the primary map.
 
 ```go
 mapview.Overview(mapview.OverviewCfg{
@@ -236,8 +267,8 @@ mapview.Map(mapview.Cfg{
 
 ## Accessibility
 
-All overlay types require a non-empty `Label` field for screen readers.
-The `a11ylint` analyzer catches missing labels at build time:
+All overlay types require a non-empty `Label` field for screen readers. The
+`a11ylint` analyzer catches missing labels at build time:
 
 ```
 go run ./cmd/a11ylint ./...
@@ -253,8 +284,8 @@ go run ./cmd/a11ylint ./...
 
 ## Attribution
 
-`mapview` renders tile source attribution in the bottom-right corner on every frame.
-Removing it is not supported — OSM tile usage policy requires it.
+`mapview` renders tile source attribution in the bottom-right corner on every
+frame. Removing it is not supported — OSM tile usage policy requires it.
 
 ## License
 
