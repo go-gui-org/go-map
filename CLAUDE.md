@@ -7,7 +7,7 @@ Guidance for Claude Code when working in this repository.
 ```
 go test ./...                   # run all tests
 go vet ./...                    # static analysis
-golangci-lint run ./...         # full lint
+make lint                       # full lint (pinned in tools/lint)
 go run ./cmd/a11ylint ./...     # overlay-Label a11y lint
 go build ./...                  # build all packages
 go run ./examples/basic         # run demo (requires SDL2)
