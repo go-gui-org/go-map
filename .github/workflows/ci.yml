@@ -58,8 +58,8 @@ jobs:
         working-directory: go-map
         run: go vet ./...
 
+      # Builds the linter pinned in tools/lint/go.mod, the same binary
+      # `make lint` runs locally.
       - name: Lint
-        uses: golangci/golangci-lint-action@v9
-        with:
-          working-directory: go-map
-          args: ./...
+        working-directory: go-map
+        run: make lint
