@@ -5,6 +5,14 @@ All notable changes are documented here. Format follows
 
 ## [Unreleased]
 
+## [v0.21.0] - 2026-10-06
+
+### Changed
+
+- **go-gui v0.86.0 (#87).** Picks up lower draw and layout allocations
+  upstream.
+- **golangci-lint is pinned in a `tools/lint` module (#86).**
+
 ## [v0.20.0] - 2026-10-01
 
 - Add `OSMConfig.BaseURL`, `Attribution` and `MaxZoom`. `tile.OSMWithConfig` can
