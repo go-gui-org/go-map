@@ -9,8 +9,7 @@ All notable changes are documented here. Format follows
 
 ### Changed
 
-- **go-gui v0.86.0 (#87).** Picks up lower draw and layout allocations
-  upstream.
+- **go-gui v0.86.0 (#87).** Picks up lower draw and layout allocations upstream.
 - **golangci-lint is pinned in a `tools/lint` module (#86).**
 
 ## [v0.20.0] - 2026-10-01
