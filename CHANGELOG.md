@@ -5,6 +5,13 @@ All notable changes are documented here. Format follows
 
 ## [Unreleased]
 
+## [v0.22.0] - 2026-10-11
+
+### Changed
+
+- **go-gui v0.87.0 (#89).** Picks up ContainerCfg.Hover, Windows
+  screen-reader support and allocation cuts upstream.
+
 ## [v0.21.0] - 2026-10-06
 
 ### Changed
