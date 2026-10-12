@@ -5,6 +5,13 @@ All notable changes are documented here. Format follows
 
 ## [Unreleased]
 
+## [v0.23.0] - 2026-10-12
+
+### Changed
+
+- **go-gui v0.88.3 (#91).** Picks up the upstream color-emoji width, size and
+  baseline fix via go-glyph v1.26.4.
+
 ## [v0.22.0] - 2026-10-11
 
 ### Changed
