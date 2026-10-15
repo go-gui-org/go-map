@@ -5,6 +5,13 @@ All notable changes are documented here. Format follows
 
 ## [Unreleased]
 
+## [v0.24.0] - 2026-10-15
+
+### Changed
+
+- **go-gui v0.89.0 (#93).** Picks up view transforms, `gui.FlipPanel`,
+  `gui.HoverLift` and display-rate animation ticks.
+
 ## [v0.23.0] - 2026-10-12
 
 ### Changed
@@ -16,8 +23,8 @@ All notable changes are documented here. Format follows
 
 ### Changed
 
-- **go-gui v0.87.0 (#89).** Picks up ContainerCfg.Hover, Windows
-  screen-reader support and allocation cuts upstream.
+- **go-gui v0.87.0 (#89).** Picks up ContainerCfg.Hover, Windows screen-reader
+  support and allocation cuts upstream.
 
 ## [v0.21.0] - 2026-10-06
 
