@@ -5,6 +5,12 @@ All notable changes are documented here. Format follows
 
 ## [Unreleased]
 
+## [v0.26.0] - 2026-10-21
+
+### Changed
+
+- **go-gui v0.92.0 (#98).** Picks up go-gui v0.92.0.
+
 ## [v0.25.0] - 2026-10-19
 
 ### Changed
