@@ -5,6 +5,13 @@ All notable changes are documented here. Format follows
 
 ## [Unreleased]
 
+## [v0.27.0] - 2026-10-25
+
+### Changed
+
+- **go-gui v0.93.0 (#100).** Picks up `Window.HTML`, table row headers, the
+  input context menu and upstream touch and Android fixes.
+
 ## [v0.26.0] - 2026-10-21
 
 ### Changed
