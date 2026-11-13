@@ -5,6 +5,13 @@ All notable changes are documented here. Format follows
 
 ## [Unreleased]
 
+## [v0.29.0] - 2026-11-13
+
+### Changed
+
+- **go-gui v0.95.0 to v0.96.0 (go-glyph v1.26.5 indirect) (#104, #105).** Picks up CR/CRLF hard
+  line breaks and the paragraph-scan fix, with transitive `x/` bumps.
+
 ## [v0.28.0] - 2026-10-31
 
 ### Changed
