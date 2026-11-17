@@ -5,6 +5,12 @@ All notable changes are documented here. Format follows
 
 ## [Unreleased]
 
+## [v0.30.0] - 2026-11-17
+
+### Changed
+
+- **go-gui v0.96.0 to v0.97.0 (go-glyph v1.26.5 indirect) (#107).** Picks up `DrawCanvasCfg.OnAnyClick`, `ButtonCfg.Loading`, `Window.KeepAwake` and the Linux software renderer.
+
 ## [v0.29.0] - 2026-11-13
 
 ### Changed
