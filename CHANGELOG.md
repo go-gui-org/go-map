@@ -5,6 +5,14 @@ All notable changes are documented here. Format follows
 
 ## [Unreleased]
 
+## [v0.31.0] - 2026-11-19
+
+### Changed
+
+- **go-gui v0.97.0 to v0.98.0 (go-glyph v1.28.0 indirect).** Picks up
+  soft-keyboard avoidance (BREAKING: the layout sits above the soft keyboard,
+  so drop any `SoftKeyboardInset` padding) and markdown spacing fixes.
+
 ## [v0.30.0] - 2026-11-17
 
 ### Changed
