@@ -5,6 +5,14 @@ All notable changes are documented here. Format follows
 
 ## [Unreleased]
 
+## [v0.32.0] - 2026-11-22
+
+### Changed
+
+- **go-gui v0.98.0 to v0.99.1 (go-glyph v1.29.2 indirect).** Picks up the
+  go-gui v0.99.x line; no API change on the map surface. Transitive regexp2
+  bump to v2.13.2.
+
 ## [v0.31.0] - 2026-11-19
 
 ### Changed
