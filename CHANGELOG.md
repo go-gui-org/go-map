@@ -5,34 +5,42 @@ All notable changes are documented here. Format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Bump go-gui v0.99.1 to v0.100.0 (go-glyph v1.29.3 indirect).** Dependency
+  update.
+
 ## [v0.32.0] - 2026-11-22
 
 ### Changed
 
-- **go-gui v0.98.0 to v0.99.1 (go-glyph v1.29.2 indirect).** Picks up the
-  go-gui v0.99.x line; no API change on the map surface. Transitive regexp2
-  bump to v2.13.2.
+- **go-gui v0.98.0 to v0.99.1 (go-glyph v1.29.2 indirect).** Picks up the go-gui
+  v0.99.x line; no API change on the map surface. Transitive regexp2 bump to
+  v2.13.2.
 
 ## [v0.31.0] - 2026-11-19
 
 ### Changed
 
 - **go-gui v0.97.0 to v0.98.0 (go-glyph v1.28.0 indirect).** Picks up
-  soft-keyboard avoidance (BREAKING: the layout sits above the soft keyboard,
-  so drop any `SoftKeyboardInset` padding) and markdown spacing fixes.
+  soft-keyboard avoidance (BREAKING: the layout sits above the soft keyboard, so
+  drop any `SoftKeyboardInset` padding) and markdown spacing fixes.
 
 ## [v0.30.0] - 2026-11-17
 
 ### Changed
 
-- **go-gui v0.96.0 to v0.97.0 (go-glyph v1.26.5 indirect) (#107).** Picks up `DrawCanvasCfg.OnAnyClick`, `ButtonCfg.Loading`, `Window.KeepAwake` and the Linux software renderer.
+- **go-gui v0.96.0 to v0.97.0 (go-glyph v1.26.5 indirect) (#107).** Picks up
+  `DrawCanvasCfg.OnAnyClick`, `ButtonCfg.Loading`, `Window.KeepAwake` and the
+  Linux software renderer.
 
 ## [v0.29.0] - 2026-11-13
 
 ### Changed
 
-- **go-gui v0.95.0 to v0.96.0 (go-glyph v1.26.5 indirect) (#104, #105).** Picks up CR/CRLF hard
-  line breaks and the paragraph-scan fix, with transitive `x/` bumps.
+- **go-gui v0.95.0 to v0.96.0 (go-glyph v1.26.5 indirect) (#104, #105).** Picks
+  up CR/CRLF hard line breaks and the paragraph-scan fix, with transitive `x/`
+  bumps.
 
 ## [v0.28.0] - 2026-10-31
 
