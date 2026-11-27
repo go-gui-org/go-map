@@ -5,6 +5,13 @@ All notable changes are documented here. Format follows
 
 ## [Unreleased]
 
+## [v0.34.0] - 2026-11-27
+
+### Changed
+
+- **Bump go-gui v0.100.0 to v0.100.1 (go-glyph v1.30.0 indirect) (#116).**
+  Dependency update. Transitive regexp2 bump to v2.13.3.
+
 ## [v0.33.0] - 2026-11-24
 
 ### Changed
